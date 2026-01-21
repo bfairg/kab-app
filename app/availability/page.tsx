@@ -7,18 +7,18 @@ import { supabase } from "@/lib/supabaseClient";
 type Zone = {
   id: string;
   name: string | null;
-  postcode_prefix: string | null;
   capacity: number | null;
   active_customers: number | null;
-  is_active: boolean | null;
+  is_active: boolean |null;
+};
+
+type ZonePostcode = {
+  postcode: string;
+  zone_id: string;
 };
 
 function normalisePostcode(input: string) {
-  // Uppercase, trim, collapse whitespace into one space
-  return input
-    .trim()
-    .toUpperCase()
-    .replace(/\s+/g, " ");
+  return input.trim().toUpperCase().replace(/\s+/g, " ");
 }
 
 export default function AvailabilityPage() {
@@ -32,6 +32,7 @@ export default function AvailabilityPage() {
 
   const [loading, setLoading] = useState(true);
   const [zone, setZone] = useState<Zone | null>(null);
+  const [zoneId, setZoneId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const available = useMemo(() => {
@@ -49,6 +50,7 @@ export default function AvailabilityPage() {
       setLoading(true);
       setError(null);
       setZone(null);
+      setZoneId(null);
 
       if (!postcode) {
         setLoading(false);
@@ -56,32 +58,61 @@ export default function AvailabilityPage() {
         return;
       }
 
-      // Exact match (you said you want to be specific with postcodes)
-      const { data, error } = await supabase
-        .from("zones")
-        .select("id,name,postcode_prefix,capacity,active_customers,is_active")
-        .eq("postcode_prefix", postcode)
-        .eq("is_active", true)
+      // 1) Look up postcode -> zone_id
+      const { data: zp, error: zpError } = await supabase
+        .from("zone_postcodes")
+        .select("postcode,zone_id")
+        .eq("postcode", postcode)
         .limit(1)
-        .maybeSingle();
+        .maybeSingle<ZonePostcode>();
 
       if (cancelled) return;
 
-      if (error) {
-        setError(error.message);
+      if (zpError) {
+        setError(zpError.message);
         setLoading(false);
         return;
       }
 
-      if (!data) {
-        setError(
-          `We don't cover ${postcode} yet. You can join the waiting list.`
+      // Not covered -> send to waiting list immediately
+      if (!zp?.zone_id) {
+        router.replace(`/waiting-list?postcode=${encodeURIComponent(postcode)}`);
+        return;
+      }
+
+      setZoneId(zp.zone_id);
+
+      // 2) Fetch zone details (capacity, name, active customers)
+      const { data: z, error: zError } = await supabase
+        .from("zones")
+        .select("id,name,capacity,active_customers,is_active")
+        .eq("id", zp.zone_id)
+        .limit(1)
+        .maybeSingle<Zone>();
+
+      if (cancelled) return;
+
+      if (zError) {
+        setError(zError.message);
+        setLoading(false);
+        return;
+      }
+
+      if (!z) {
+        // If mapping exists but zone row doesn't, treat as not covered
+        router.replace(`/waiting-list?postcode=${encodeURIComponent(postcode)}`);
+        return;
+      }
+
+      // If zone is inactive, treat as not covered (or waiting list)
+      if (z.is_active === false) {
+        router.replace(
+          `/waiting-list?postcode=${encodeURIComponent(postcode)}&zoneId=${encodeURIComponent(z.id)}`
         );
-        setLoading(false);
         return;
       }
 
-      setZone(data as Zone);
+      setZone(z);
       setLoading(false);
     }
 
@@ -90,21 +121,20 @@ export default function AvailabilityPage() {
     return () => {
       cancelled = true;
     };
-  }, [postcode]);
+  }, [postcode, router]);
 
   function goBack() {
     router.push("/address");
   }
 
   function goSignUp() {
-    if (!zone) return;
+    if (!zoneId) return;
     router.push(
-      `/signup?postcode=${encodeURIComponent(postcode)}&zoneId=${encodeURIComponent(zone.id)}`
+      `/signup?postcode=${encodeURIComponent(postcode)}&zoneId=${encodeURIComponent(zoneId)}`
     );
   }
 
   function goWaitingList() {
-    const zoneId = zone?.id || "";
     router.push(
       `/waiting-list?postcode=${encodeURIComponent(postcode)}${
         zoneId ? `&zoneId=${encodeURIComponent(zoneId)}` : ""
@@ -118,7 +148,10 @@ export default function AvailabilityPage() {
         <div className="space-y-2">
           <h1 className="text-3xl font-semibold">Check availability</h1>
           <p className="text-sm text-neutral-500">
-            Postcode: <span className="font-medium text-neutral-200">{postcode || "Unknown"}</span>
+            Postcode:{" "}
+            <span className="font-medium text-neutral-200">
+              {postcode || "Unknown"}
+            </span>
           </p>
         </div>
 
@@ -154,7 +187,7 @@ export default function AvailabilityPage() {
                     Good news. Your zone has availability. You can sign up now.
                   </p>
                   <p className="text-xs text-neutral-500">
-                    Matched: {zone.name || "Zone"} ({zone.postcode_prefix}) · Capacity:{" "}
+                    Matched: {zone.name || "Zone"} · Capacity:{" "}
                     {zone.capacity ?? 0} · Active: {zone.active_customers ?? 0}
                   </p>
 
@@ -180,7 +213,7 @@ export default function AvailabilityPage() {
                     when space opens.
                   </p>
                   <p className="text-xs text-neutral-500">
-                    Matched: {zone.name || "Zone"} ({zone.postcode_prefix}) · Capacity:{" "}
+                    Matched: {zone.name || "Zone"} · Capacity:{" "}
                     {zone.capacity ?? 0} · Active: {zone.active_customers ?? 0}
                   </p>
 
