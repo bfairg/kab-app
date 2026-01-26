@@ -2,11 +2,13 @@ import { NextResponse } from "next/server";
 import crypto from "crypto";
 import { createClient } from "@supabase/supabase-js";
 
+export const runtime = "nodejs";
+
 function gcBaseUrl() {
-  const env = (process.env.GOCARDLESS_ENVIRONMENT || "sandbox").toLowerCase();
-  return env === "live"
-    ? "https://api.gocardless.com"
-    : "https://api-sandbox.gocardless.com";
+  const env = (process.env.GOCARDLESS_ENVIRONMENT || "live").toLowerCase();
+  return env === "sandbox"
+    ? "https://api-sandbox.gocardless.com"
+    : "https://api.gocardless.com";
 }
 
 async function gcPost(path: string, body: any, idempotencyKey?: string) {
@@ -222,7 +224,15 @@ export async function POST(req: Request) {
 
             // Optional: increment zone counter if you have this RPC
             if (customerRow.zone_id) {
-              await supabase.rpc("increment_zone_active_customers", { z: customerRow.zone_id }).catch(() => {});
+              const { error: rpcErr } = await supabase.rpc(
+                "increment_zone_active_customers",
+                { z: customerRow.zone_id }
+              );
+
+              // Ignore if missing or failing, but log so you can see it
+              if (rpcErr) {
+                console.warn("[webhook] increment_zone_active_customers failed:", rpcErr.message);
+              }
             }
           }
         } catch (e: any) {
