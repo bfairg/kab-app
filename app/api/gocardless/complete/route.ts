@@ -4,6 +4,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sendSignupConfirmationEmail } from "../../../../lib/email";
 
+export const runtime = "nodejs";
+
 function requireEnv(name: string): string {
   const v = process.env[name];
   if (!v || !String(v).trim()) throw new Error(`Missing environment variable: ${name}`);
@@ -85,6 +87,12 @@ async function gcPost(path: string, body: any, idempotencyKey?: string) {
 
 type Plan = "BIN" | "BIN_PLUS_GREEN";
 
+function toPlan(v: unknown): Plan | null {
+  const s = String(v ?? "").trim();
+  if (s === "BIN" || s === "BIN_PLUS_GREEN") return s;
+  return null;
+}
+
 function planConfig(plan: Plan) {
   if (plan === "BIN") return { monthlyPence: 1000, label: "Cyclical Wheelie Bin Cleaning" };
   return { monthlyPence: 1500, label: "Cyclical Wheelie Bin Cleaning + Green Bin" };
@@ -149,6 +157,21 @@ function desiredSubscriptionStartUTC(signupDate: Date): string {
   return firstOfNextMonthUTC(signupDate);
 }
 
+// IMPORTANT: type the row we expect back from Supabase
+type CustomerRow = {
+  id: string;
+  plan: string | null;
+  email: string | null;
+  full_name: string | null;
+  gc_billing_request_id: string | null;
+  gc_mandate_id: string | null;
+  gc_prorata_payment_id: string | null;
+  gc_subscription_id: string | null;
+  gc_subscription_start_date: string | null;
+  prorata_amount_pence: number | null;
+  confirmation_email_sent_at: string | null;
+};
+
 export async function POST(req: Request) {
   let customer_id: string | null = null;
 
@@ -180,7 +203,7 @@ export async function POST(req: Request) {
         ].join(",")
       )
       .eq("id", customer_id)
-      .single();
+      .maybeSingle<CustomerRow>();
 
     if (readErr) {
       return NextResponse.json(
@@ -190,8 +213,8 @@ export async function POST(req: Request) {
     }
     if (!customer) return NextResponse.json({ error: "Customer not found", customer_id }, { status: 404 });
 
-    const plan = String(customer.plan || "").trim() as Plan;
-    if (plan !== "BIN" && plan !== "BIN_PLUS_GREEN") {
+    const plan = toPlan(customer.plan);
+    if (!plan) {
       return NextResponse.json(
         { error: "Customer plan not set (BIN or BIN_PLUS_GREEN)", customer_id },
         { status: 400 }
