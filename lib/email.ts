@@ -1,3 +1,5 @@
+// lib/email.ts
+
 import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -17,7 +19,6 @@ export async function sendSignupConfirmationEmail(args: {
   if (!from) throw new Error("Missing EMAIL_FROM");
 
   const name = (args.fullName || "").trim() || "there";
-
   const subject = "Your Direct Debit is set up";
 
   const hasProrata =
@@ -47,9 +48,7 @@ export async function sendSignupConfirmationEmail(args: {
 
       <p>
         <strong>Plan:</strong> ${escapeHtml(args.planLabel)}<br/>
-        <strong>Monthly price:</strong> £${escapeHtml(
-          args.monthlyPricePounds
-        )} per month
+        <strong>Monthly price:</strong> £${escapeHtml(args.monthlyPricePounds)} per month
       </p>
 
       ${prorataBlock}
@@ -87,8 +86,9 @@ export async function sendSignupConfirmationEmail(args: {
   });
 }
 
-function escapeHtml(input: string) {
-  return input
+function escapeHtml(input: string | null | undefined) {
+  const s = input ?? "";
+  return s
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
