@@ -2,8 +2,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
-import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 
 type Plan = "BIN" | "BIN_PLUS_GREEN";
 
@@ -47,11 +46,15 @@ function isLikelyPostcode(v: string) {
   return s.length >= 5 && s.length <= 8;
 }
 
+function normalisePostcode(v: string) {
+  return v.toUpperCase().trim().replace(/\s+/g, " ");
+}
+
 export default function SignupPage() {
   const sp = useSearchParams();
   const router = useRouter();
 
-  const qpPostcode = useMemo(() => (sp.get("postcode") || "").toUpperCase().trim(), [sp]);
+  const qpPostcode = useMemo(() => normalisePostcode(sp.get("postcode") || ""), [sp]);
   const zoneId = useMemo(() => (sp.get("zoneId") || "").trim(), [sp]);
 
   const [plan, setPlan] = useState<Plan>("BIN");
@@ -60,7 +63,7 @@ export default function SignupPage() {
   const [email, setEmail] = useState("");
   const [mobile, setMobile] = useState("");
 
-  // Keep postcode in state so it can be posted, but prefill from query.
+  // Prefill from query, but keep editable if user arrived directly.
   const [postcode, setPostcode] = useState(qpPostcode);
 
   const [address1, setAddress1] = useState("");
@@ -93,7 +96,7 @@ export default function SignupPage() {
     return { ok: missing.length === 0, missing, nameOk, emailOk, mobileOk, postcodeOk, addressOk, townOk };
   }, [fullName, email, mobile, postcode, address1, town]);
 
-  const startSignup = async () => {
+  async function startSignup() {
     setSubmitted(true);
     setError(null);
 
@@ -114,13 +117,13 @@ export default function SignupPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          full_name: fullName,
-          email,
-          mobile,
-          postcode,
-          address_line_1: address1,
-          address_line_2: address2,
-          town,
+          full_name: fullName.trim(),
+          email: email.trim(),
+          mobile: mobile.trim(),
+          postcode: normalisePostcode(postcode),
+          address_line_1: address1.trim(),
+          address_line_2: address2.trim() || null,
+          town: town.trim(),
           plan,
           zone_id: zoneId,
         }),
@@ -132,6 +135,7 @@ export default function SignupPage() {
       }
 
       const customerId: string = createJson.customer_id;
+      if (!customerId) throw new Error("Missing customer_id");
 
       const gcRes = await fetch("/api/gocardless/start", {
         method: "POST",
@@ -148,7 +152,7 @@ export default function SignupPage() {
       setError(e?.message || "Something went wrong");
       setLoading(false);
     }
-  };
+  }
 
   const nameInvalid = submitted && !validation.nameOk;
   const emailInvalid = submitted && !validation.emailOk;
@@ -183,12 +187,13 @@ export default function SignupPage() {
               </div>
             </div>
 
-            <Link href="/availability?postcode=" className="text-xs text-white/60 hover:text-white/80" onClick={(e) => {
-              e.preventDefault();
-              router.push(`/availability?postcode=${encodeURIComponent(postcode || qpPostcode)}`);
-            }}>
+            <button
+              type="button"
+              className="text-xs text-white/60 hover:text-white/80"
+              onClick={() => router.push(`/availability?postcode=${encodeURIComponent(postcode || qpPostcode)}`)}
+            >
               Back
-            </Link>
+            </button>
           </header>
 
           <h1 className="mt-10 text-3xl font-semibold tracking-tight sm:text-4xl">
@@ -227,9 +232,7 @@ export default function SignupPage() {
                         </div>
                         <div className="text-right">
                           <div className="text-sm font-semibold">{meta.priceLabel}</div>
-                          <div className="mt-1 text-[11px] text-white/60">
-                            {active ? "Selected" : "Select"}
-                          </div>
+                          <div className="mt-1 text-[11px] text-white/60">{active ? "Selected" : "Select"}</div>
                         </div>
                       </div>
                     </button>
@@ -309,7 +312,7 @@ export default function SignupPage() {
                     )}
                     placeholder="LA3 2FW"
                     value={postcode}
-                    onChange={(e) => setPostcode(e.target.value.toUpperCase())}
+                    onChange={(e) => setPostcode(normalisePostcode(e.target.value))}
                     autoComplete="postal-code"
                     disabled={!!qpPostcode}
                   />
@@ -400,9 +403,7 @@ export default function SignupPage() {
               <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#0B1020]/90 p-6 text-center">
                 <div className="mx-auto mb-3 h-10 w-10 animate-spin rounded-full border-2 border-white/20 border-t-cyan-300" />
                 <div className="text-sm font-semibold">Starting Direct Debit</div>
-                <div className="mt-1 text-xs text-white/60">
-                  Sending you to GoCardless to complete setup
-                </div>
+                <div className="mt-1 text-xs text-white/60">Sending you to GoCardless to complete setup</div>
               </div>
             </div>
           )}
