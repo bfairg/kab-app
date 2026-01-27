@@ -1,5 +1,3 @@
-// app/api/customers/create/route.ts
-
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
@@ -17,10 +15,8 @@ function toNullIfEmpty(v: unknown) {
 }
 
 function normaliseMobile(input: unknown) {
-  // keep it simple: strip spaces, keep leading + if present
   const raw = String(input || "").trim();
-  const compact = raw.replace(/\s+/g, "");
-  return compact;
+  return raw.replace(/\s+/g, "");
 }
 
 export async function POST(req: Request) {
@@ -51,7 +47,7 @@ export async function POST(req: Request) {
 
     const supabase = createClient(supabaseUrl, serviceRole);
 
-    const insertPayload: Record<string, any> = {
+    const payload = {
       full_name,
       email,
       mobile,
@@ -63,32 +59,81 @@ export async function POST(req: Request) {
       created_at: new Date().toISOString(),
     };
 
-    console.log("[customers/create] insert payload:", insertPayload);
+    console.log("[customers/create] payload:", payload);
 
-    const { data, error } = await supabase
+    // Attempt insert first
+    const { data: inserted, error: insertError } = await supabase
       .from("customers")
-      .insert(insertPayload)
+      .insert(payload)
       .select("id, plan")
       .single();
 
-    if (error) {
-      console.error("[customers/create] supabase error:", error);
-      return NextResponse.json(
-        {
-          error: "Supabase insert failed",
-          details: error.message,
-          hint: (error as any).hint ?? null,
-          code: (error as any).code ?? null,
-        },
-        { status: 500 }
-      );
+    if (!insertError && inserted) {
+      return NextResponse.json({
+        ok: true,
+        customer_id: inserted.id,
+        plan: inserted.plan,
+        created: true,
+      });
     }
 
-    return NextResponse.json({ ok: true, customer_id: data.id, plan: data.plan });
-  } catch (e: any) {
-    console.error("[customers/create] exception:", e);
+    // Handle duplicate mobile
+    if ((insertError as any)?.code === "23505") {
+      console.warn("[customers/create] duplicate mobile detected:", mobile);
+
+      const { data: existing, error: selectError } = await supabase
+        .from("customers")
+        .select("id, plan")
+        .eq("mobile", mobile)
+        .single();
+
+      if (selectError || !existing) {
+        console.error("[customers/create] failed to fetch existing:", selectError);
+        return NextResponse.json(
+          { error: "Customer exists but could not be retrieved" },
+          { status: 500 }
+        );
+      }
+
+      // Update details to latest submission
+      const { error: updateError } = await supabase
+        .from("customers")
+        .update({
+          full_name,
+          email,
+          postcode,
+          address_line_1,
+          address_line_2,
+          town,
+          plan,
+        })
+        .eq("id", existing.id);
+
+      if (updateError) {
+        console.error("[customers/create] update failed:", updateError);
+      }
+
+      return NextResponse.json({
+        ok: true,
+        customer_id: existing.id,
+        plan: existing.plan,
+        created: false,
+      });
+    }
+
+    // Any other DB error
+    console.error("[customers/create] insert error:", insertError);
     return NextResponse.json(
-      { error: e?.message || "Create customer failed" },
+      {
+        error: "Database error",
+        details: insertError?.message ?? null,
+      },
+      { status: 500 }
+    );
+  } catch (err: any) {
+    console.error("[customers/create] exception:", err);
+    return NextResponse.json(
+      { error: err?.message || "Create customer failed" },
       { status: 500 }
     );
   }
