@@ -5,7 +5,7 @@ import CompletionClient from "./CompletionClient";
 
 export default function SignupCompletionPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#070A0F] text-white" />}>
+    <Suspense fallback={<div className="min-h-screen bg-[#070A0F]" />}>
       <CompletionClient />
     </Suspense>
   );
