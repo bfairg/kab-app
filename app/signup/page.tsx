@@ -1,4 +1,3 @@
-// app/signup/page.tsx
 "use client";
 
 import { useMemo, useState } from "react";
@@ -41,13 +40,13 @@ function isLikelyUKMobile(v: string) {
   return digits.length >= 10;
 }
 
+function normalisePostcode(v: string) {
+  return v.toUpperCase().trim().replace(/\s+/g, " ");
+}
+
 function isLikelyPostcode(v: string) {
   const s = v.trim().replace(/\s+/g, "");
   return s.length >= 5 && s.length <= 8;
-}
-
-function normalisePostcode(v: string) {
-  return v.toUpperCase().trim().replace(/\s+/g, " ");
 }
 
 export default function SignupPage() {
@@ -62,8 +61,6 @@ export default function SignupPage() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [mobile, setMobile] = useState("");
-
-  // Prefill from query, but keep editable if user arrived directly.
   const [postcode, setPostcode] = useState(qpPostcode);
 
   const [address1, setAddress1] = useState("");
@@ -130,9 +127,7 @@ export default function SignupPage() {
       });
 
       const createJson = await createRes.json().catch(() => ({}));
-      if (!createRes.ok) {
-        throw new Error(createJson?.details || createJson?.error || "Customer create failed");
-      }
+      if (!createRes.ok) throw new Error(createJson?.details || createJson?.error || "Customer create failed");
 
       const customerId: string = createJson.customer_id;
       if (!customerId) throw new Error("Missing customer_id");
@@ -163,7 +158,6 @@ export default function SignupPage() {
 
   return (
     <main className="min-h-screen bg-[#070A0F] text-white">
-      {/* Background accents (quieter) */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         <div className="absolute -top-56 left-1/2 h-[420px] w-[680px] -translate-x-1/2 rounded-full bg-gradient-to-r from-sky-500/14 via-cyan-400/8 to-blue-600/14 blur-3xl" />
         <div className="absolute -bottom-52 right-[-160px] h-[380px] w-[520px] rounded-full bg-gradient-to-tr from-blue-600/14 via-cyan-400/8 to-sky-400/8 blur-3xl" />
@@ -172,7 +166,6 @@ export default function SignupPage() {
 
       <div className="relative mx-auto flex min-h-screen w-full max-w-xl items-center px-6 py-12">
         <div className="w-full">
-          {/* Header */}
           <header className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-white/5">
@@ -204,7 +197,6 @@ export default function SignupPage() {
             You’ll complete Direct Debit securely on GoCardless.
           </p>
 
-          {/* Plan */}
           <div className="mt-8 rounded-2xl border border-white/10 bg-white/[0.04] shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
             <div className="p-6">
               <div className="text-sm font-semibold">Plan</div>
@@ -246,7 +238,6 @@ export default function SignupPage() {
             </div>
           </div>
 
-          {/* Details */}
           <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.04] shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
             <div className="p-6">
               <div className="text-sm font-semibold">Your details</div>
@@ -261,7 +252,9 @@ export default function SignupPage() {
                     className={cx(
                       "w-full rounded-xl border bg-black/20 px-3 py-2.5 text-sm outline-none",
                       "placeholder:text-white/35 focus:ring-2 focus:ring-cyan-400/25",
-                      nameInvalid ? "border-red-500/40 focus:border-red-500/60" : "border-white/10 focus:border-cyan-400/50"
+                      nameInvalid
+                        ? "border-red-500/40 focus:border-red-500/60"
+                        : "border-white/10 focus:border-cyan-400/50"
                     )}
                     placeholder="Barry Fairgrieve"
                     value={fullName}
@@ -276,7 +269,9 @@ export default function SignupPage() {
                     className={cx(
                       "w-full rounded-xl border bg-black/20 px-3 py-2.5 text-sm outline-none",
                       "placeholder:text-white/35 focus:ring-2 focus:ring-cyan-400/25",
-                      emailInvalid ? "border-red-500/40 focus:border-red-500/60" : "border-white/10 focus:border-cyan-400/50"
+                      emailInvalid
+                        ? "border-red-500/40 focus:border-red-500/60"
+                        : "border-white/10 focus:border-cyan-400/50"
                     )}
                     placeholder="you@example.com"
                     value={email}
@@ -292,7 +287,9 @@ export default function SignupPage() {
                     className={cx(
                       "w-full rounded-xl border bg-black/20 px-3 py-2.5 text-sm outline-none",
                       "placeholder:text-white/35 focus:ring-2 focus:ring-cyan-400/25",
-                      mobileInvalid ? "border-red-500/40 focus:border-red-500/60" : "border-white/10 focus:border-cyan-400/50"
+                      mobileInvalid
+                        ? "border-red-500/40 focus:border-red-500/60"
+                        : "border-white/10 focus:border-cyan-400/50"
                     )}
                     placeholder="07123 456789"
                     value={mobile}
@@ -308,7 +305,9 @@ export default function SignupPage() {
                     className={cx(
                       "w-full rounded-xl border bg-black/20 px-3 py-2.5 text-sm uppercase outline-none",
                       "placeholder:text-white/35 focus:ring-2 focus:ring-cyan-400/25",
-                      postcodeInvalid ? "border-red-500/40 focus:border-red-500/60" : "border-white/10 focus:border-cyan-400/50"
+                      postcodeInvalid
+                        ? "border-red-500/40 focus:border-red-500/60"
+                        : "border-white/10 focus:border-cyan-400/50"
                     )}
                     placeholder="LA3 2FW"
                     value={postcode}
@@ -329,7 +328,9 @@ export default function SignupPage() {
                     className={cx(
                       "w-full rounded-xl border bg-black/20 px-3 py-2.5 text-sm outline-none",
                       "placeholder:text-white/35 focus:ring-2 focus:ring-cyan-400/25",
-                      addressInvalid ? "border-red-500/40 focus:border-red-500/60" : "border-white/10 focus:border-cyan-400/50"
+                      addressInvalid
+                        ? "border-red-500/40 focus:border-red-500/60"
+                        : "border-white/10 focus:border-cyan-400/50"
                     )}
                     placeholder="8 Nightingale Close"
                     value={address1}
@@ -358,7 +359,9 @@ export default function SignupPage() {
                     className={cx(
                       "w-full rounded-xl border bg-black/20 px-3 py-2.5 text-sm outline-none",
                       "placeholder:text-white/35 focus:ring-2 focus:ring-cyan-400/25",
-                      townInvalid ? "border-red-500/40 focus:border-red-500/60" : "border-white/10 focus:border-cyan-400/50"
+                      townInvalid
+                        ? "border-red-500/40 focus:border-red-500/60"
+                        : "border-white/10 focus:border-cyan-400/50"
                     )}
                     placeholder="Morecambe"
                     value={town}
@@ -397,7 +400,6 @@ export default function SignupPage() {
             </div>
           </div>
 
-          {/* Loading overlay */}
           {loading && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
               <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#0B1020]/90 p-6 text-center">
@@ -416,4 +418,3 @@ export default function SignupPage() {
     </main>
   );
 }
-
