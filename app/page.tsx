@@ -35,15 +35,13 @@ export default function Home() {
         <div className="w-full">
           {/* Header */}
           <header className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-white/5">
-              {/* Optional logo: add file to /public/kab-logo.png to show */}
+            <div className="flex h-11 items-center rounded-xl bg-white/5 px-2">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src="/kab-logo.png"
                 alt="KAB Group"
-                className="h-full w-full object-cover"
+                className="h-8 w-auto object-contain"
               />
-              <span className="text-xs font-semibold text-white/70">KAB</span>
             </div>
 
             <div className="leading-tight">
