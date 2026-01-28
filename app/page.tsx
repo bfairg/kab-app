@@ -41,7 +41,7 @@ export default function Home() {
               <img
                 src="/kab-logo.png"
                 alt="KAB Group"
-                className="hidden h-full w-full object-cover"
+                className="h-full w-full object-cover"
               />
               <span className="text-xs font-semibold text-white/70">KAB</span>
             </div>
