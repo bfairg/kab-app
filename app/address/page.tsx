@@ -118,7 +118,7 @@ export default function AddressPage() {
                         ? "border-red-500/40 focus:border-red-500/60"
                         : "border-white/10 focus:border-cyan-400/50"
                     )}
-                    placeholder="8 Nightingale Close"
+                    placeholder=""
                     value={address1}
                     onChange={(e) => setAddress1(e.target.value)}
                     autoComplete="address-line1"
@@ -140,7 +140,7 @@ export default function AddressPage() {
                         ? "border-red-500/40 focus:border-red-500/60"
                         : "border-white/10 focus:border-cyan-400/50"
                     )}
-                    placeholder="LA3 2FW"
+                    placeholder=""
                     value={postcode}
                     onChange={(e) => setPostcode(e.target.value.toUpperCase())}
                     autoComplete="postal-code"
