@@ -1,8 +1,8 @@
+// app/signup/SignupClient.tsx
 "use client";
 
 import { useMemo, useState } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
-import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 
 type Plan = "BIN" | "BIN_PLUS_GREEN";
 
@@ -37,13 +37,15 @@ function cx(...classes: Array<string | false | null | undefined>) {
 }
 
 function isValidEmail(v: string) {
-  return v.trim().includes("@") && v.trim().includes(".");
+  const s = v.trim();
+  return s.includes("@") && s.includes(".");
 }
 
 function isLikelyUKMobile(v: string) {
   const digits = v.replace(/\D/g, "");
   if (digits.length === 11 && digits.startsWith("07")) return true;
   if (digits.length === 12 && digits.startsWith("447")) return true;
+  if (digits.length === 13 && digits.startsWith("0447")) return true;
   return digits.length >= 10;
 }
 
@@ -52,14 +54,15 @@ function isLikelyPostcode(v: string) {
   return s.length >= 5 && s.length <= 8;
 }
 
-export default function SignupClient() {
-  const sp = useSearchParams();
-  const router = useRouter();
+function normalisePostcode(input: string) {
+  return input.trim().toUpperCase().replace(/\s+/g, " ");
+}
 
-  const qpPostcode = useMemo(
-    () => (sp.get("postcode") || "").toUpperCase().trim(),
-    [sp]
-  );
+export default function SignupClient() {
+  const router = useRouter();
+  const sp = useSearchParams();
+
+  const qpPostcode = useMemo(() => normalisePostcode(sp.get("postcode") || ""), [sp]);
   const zoneId = useMemo(() => (sp.get("zoneId") || "").trim(), [sp]);
 
   const [plan, setPlan] = useState<Plan>("BIN");
@@ -68,6 +71,7 @@ export default function SignupClient() {
   const [email, setEmail] = useState("");
   const [mobile, setMobile] = useState("");
   const [postcode, setPostcode] = useState(qpPostcode);
+
   const [address1, setAddress1] = useState("");
   const [address2, setAddress2] = useState("");
   const [town, setTown] = useState("");
@@ -95,17 +99,15 @@ export default function SignupClient() {
     if (!addressOk) missing.push("Address line 1");
     if (!townOk) missing.push("Town / City");
 
-    return {
-      ok: missing.length === 0,
-      missing,
-      nameOk,
-      emailOk,
-      mobileOk,
-      postcodeOk,
-      addressOk,
-      townOk,
-    };
+    return { ok: missing.length === 0, missing, nameOk, emailOk, mobileOk, postcodeOk, addressOk, townOk };
   }, [fullName, email, mobile, postcode, address1, town]);
+
+  const nameInvalid = submitted && !validation.nameOk;
+  const emailInvalid = submitted && !validation.emailOk;
+  const mobileInvalid = submitted && !validation.mobileOk;
+  const postcodeInvalid = submitted && !validation.postcodeOk;
+  const addressInvalid = submitted && !validation.addressOk;
+  const townInvalid = submitted && !validation.townOk;
 
   async function startSignup() {
     setSubmitted(true);
@@ -128,24 +130,22 @@ export default function SignupClient() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          full_name: fullName,
-          email,
-          mobile,
-          postcode,
-          address_line_1: address1,
-          address_line_2: address2,
-          town,
+          full_name: fullName.trim(),
+          email: email.trim(),
+          mobile: mobile.trim(),
+          postcode: normalisePostcode(postcode),
+          address_line_1: address1.trim(),
+          address_line_2: address2.trim(),
+          town: town.trim(),
           plan,
           zone_id: zoneId,
         }),
       });
 
       const createJson = await createRes.json().catch(() => ({}));
-      if (!createRes.ok) {
-        throw new Error(createJson?.error || "Customer create failed");
-      }
+      if (!createRes.ok) throw new Error(createJson?.details || createJson?.error || "Customer create failed");
 
-      const customerId = createJson.customer_id;
+      const customerId: string = createJson.customer_id;
 
       const gcRes = await fetch("/api/gocardless/start", {
         method: "POST",
@@ -154,9 +154,8 @@ export default function SignupClient() {
       });
 
       const gcJson = await gcRes.json().catch(() => ({}));
-      if (!gcRes.ok || !gcJson.authorisation_url) {
-        throw new Error("Failed to start Direct Debit");
-      }
+      if (!gcRes.ok) throw new Error(gcJson?.error || "GoCardless start failed");
+      if (!gcJson.authorisation_url) throw new Error("Missing authorisation_url");
 
       window.location.href = gcJson.authorisation_url;
     } catch (e: any) {
@@ -165,70 +164,254 @@ export default function SignupClient() {
     }
   }
 
+  function goBack() {
+    const pc = (postcode || qpPostcode || "").trim();
+    router.push(`/availability?postcode=${encodeURIComponent(pc)}`);
+  }
+
   return (
     <main className="min-h-screen bg-[#070A0F] text-white">
-      <div className="relative mx-auto max-w-xl px-6 py-12">
-        <header className="flex items-center justify-between">
-          <div>
-            <div className="text-sm text-white/70">KAB Group</div>
-            <div className="text-xl font-semibold">Set up your subscription</div>
+      {/* Background accents */}
+      <div className="pointer-events-none fixed inset-0 overflow-hidden">
+        <div className="absolute -top-48 left-1/2 h-[520px] w-[780px] -translate-x-1/2 rounded-full bg-gradient-to-r from-sky-500/20 via-cyan-400/10 to-blue-600/20 blur-3xl" />
+        <div className="absolute -bottom-40 right-[-120px] h-[420px] w-[520px] rounded-full bg-gradient-to-tr from-blue-600/20 via-cyan-400/10 to-sky-400/10 blur-3xl" />
+        <div className="absolute inset-0 bg-gradient-to-b from-white/[0.06] via-transparent to-transparent" />
+      </div>
+
+      <div className="relative mx-auto flex min-h-screen w-full max-w-xl items-center px-6 py-12">
+        <div className="w-full">
+          {/* Header */}
+          <header className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-white/5">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/kab-logo.png" alt="KAB Group" className="hidden h-full w-full object-cover" />
+                <span className="text-xs font-semibold text-white/70">KAB</span>
+              </div>
+              <div className="leading-tight">
+                <div className="text-sm text-white/70">KAB Group</div>
+                <div className="text-xl font-semibold tracking-tight">Set up your subscription</div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={goBack}
+              className="text-xs text-white/60 hover:text-white/80"
+            >
+              ← Back
+            </button>
+          </header>
+
+          <h1 className="mt-10 text-3xl font-semibold tracking-tight sm:text-4xl">Choose a plan and continue</h1>
+          <p className="mt-3 text-sm text-white/70">You’ll complete Direct Debit securely on GoCardless.</p>
+
+          {/* Plan card */}
+          <div className="mt-8 rounded-2xl border border-white/10 bg-white/[0.04] shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
+            <div className="p-6">
+              <div className="text-sm font-semibold">Plan</div>
+
+              <div className="mt-3 grid gap-3">
+                {(["BIN", "BIN_PLUS_GREEN"] as Plan[]).map((p) => {
+                  const meta = PLAN_META[p];
+                  const active = p === plan;
+
+                  return (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setPlan(p)}
+                      className={cx(
+                        "rounded-xl border p-4 text-left transition",
+                        "bg-black/20 hover:bg-white/[0.06]",
+                        active ? "border-cyan-400/60 ring-1 ring-cyan-400/30" : "border-white/10"
+                      )}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="font-semibold">{meta.title}</div>
+                          <div className="mt-0.5 text-xs text-white/70">{meta.subtitle}</div>
+
+                          <ul className="mt-3 space-y-1 text-xs text-white/70">
+                            {meta.bullets.map((b) => (
+                              <li key={b} className="flex gap-2">
+                                <span className="mt-[7px] h-1 w-1 rounded-full bg-white/50" />
+                                <span>{b}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+
+                        <div className="text-right">
+                          <div className="text-sm font-semibold">{meta.priceLabel}</div>
+                          <div className="mt-1 text-[11px] text-white/60">{active ? "Selected" : "Select"}</div>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
-          <Link
-            href={`/availability?postcode=${encodeURIComponent(postcode || qpPostcode)}`}
-            className="text-xs text-white/60 hover:text-white/80"
-          >
-            Back
-          </Link>
-        </header>
 
-        <h1 className="mt-8 text-3xl font-semibold">Choose a plan</h1>
+          {/* Details card (single column) */}
+          <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.04] shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
+            <div className="p-6">
+              <div className="text-sm font-semibold">Your details</div>
+              <div className="mt-1 text-xs text-white/60">We use these to set up your Direct Debit and confirm your subscription.</div>
 
-        <div className="mt-6 space-y-3">
-          {(Object.keys(PLAN_META) as Plan[]).map((p) => {
-            const meta = PLAN_META[p];
-            const active = p === plan;
-
-            return (
-              <button
-                key={p}
-                type="button"
-                onClick={() => setPlan(p)}
-                className={cx(
-                  "w-full rounded-xl border p-4 text-left",
-                  active ? "border-cyan-400" : "border-white/10"
-                )}
-              >
-                <div className="flex justify-between">
-                  <div>
-                    <div className="font-semibold">{meta.title}</div>
-                    <div className="text-xs text-white/60">{meta.subtitle}</div>
-                  </div>
-                  <div className="font-semibold">{meta.priceLabel}</div>
+              <div className="mt-5 grid gap-4">
+                <div>
+                  <label className="mb-1 block text-xs text-white/70">Full name</label>
+                  <input
+                    className={cx(
+                      "w-full rounded-xl border bg-black/20 px-3 py-2.5 text-sm outline-none",
+                      "focus:ring-2 focus:ring-cyan-400/25",
+                      nameInvalid ? "border-red-500/40 focus:border-red-500/60" : "border-white/10 focus:border-cyan-400/50"
+                    )}
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    autoComplete="name"
+                  />
+                  {nameInvalid && <p className="mt-1 text-[11px] text-red-200/80">Enter your full name.</p>}
                 </div>
-              </button>
-            );
-          })}
+
+                <div>
+                  <label className="mb-1 block text-xs text-white/70">Email</label>
+                  <input
+                    className={cx(
+                      "w-full rounded-xl border bg-black/20 px-3 py-2.5 text-sm outline-none",
+                      "focus:ring-2 focus:ring-cyan-400/25",
+                      emailInvalid ? "border-red-500/40 focus:border-red-500/60" : "border-white/10 focus:border-cyan-400/50"
+                    )}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    autoComplete="email"
+                    inputMode="email"
+                  />
+                  {emailInvalid && <p className="mt-1 text-[11px] text-red-200/80">Enter a valid email address.</p>}
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-xs text-white/70">Mobile</label>
+                  <input
+                    className={cx(
+                      "w-full rounded-xl border bg-black/20 px-3 py-2.5 text-sm outline-none",
+                      "focus:ring-2 focus:ring-cyan-400/25",
+                      mobileInvalid ? "border-red-500/40 focus:border-red-500/60" : "border-white/10 focus:border-cyan-400/50"
+                    )}
+                    value={mobile}
+                    onChange={(e) => setMobile(e.target.value)}
+                    autoComplete="tel"
+                    inputMode="tel"
+                  />
+                  {mobileInvalid && <p className="mt-1 text-[11px] text-red-200/80">Enter a valid UK mobile number.</p>}
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-xs text-white/70">Postcode</label>
+                  <input
+                    className={cx(
+                      "w-full rounded-xl border bg-black/20 px-3 py-2.5 text-sm uppercase outline-none",
+                      "focus:ring-2 focus:ring-cyan-400/25",
+                      postcodeInvalid ? "border-red-500/40 focus:border-red-500/60" : "border-white/10 focus:border-cyan-400/50"
+                    )}
+                    value={postcode}
+                    onChange={(e) => setPostcode(e.target.value.toUpperCase())}
+                    autoComplete="postal-code"
+                    disabled={!!qpPostcode}
+                  />
+                  {qpPostcode ? (
+                    <p className="mt-1 text-[11px] text-white/50">Postcode comes from your availability check.</p>
+                  ) : postcodeInvalid ? (
+                    <p className="mt-1 text-[11px] text-red-200/80">Enter a valid postcode.</p>
+                  ) : null}
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-xs text-white/70">Address line 1</label>
+                  <input
+                    className={cx(
+                      "w-full rounded-xl border bg-black/20 px-3 py-2.5 text-sm outline-none",
+                      "focus:ring-2 focus:ring-cyan-400/25",
+                      addressInvalid ? "border-red-500/40 focus:border-red-500/60" : "border-white/10 focus:border-cyan-400/50"
+                    )}
+                    value={address1}
+                    onChange={(e) => setAddress1(e.target.value)}
+                    autoComplete="address-line1"
+                  />
+                  {addressInvalid && <p className="mt-1 text-[11px] text-red-200/80">Enter your first line of address.</p>}
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-xs text-white/70">Address line 2 (optional)</label>
+                  <input
+                    className={cx(
+                      "w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 text-sm outline-none",
+                      "focus:border-cyan-400/50 focus:ring-2 focus:ring-cyan-400/25"
+                    )}
+                    value={address2}
+                    onChange={(e) => setAddress2(e.target.value)}
+                    autoComplete="address-line2"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-1 block text-xs text-white/70">Town / City</label>
+                  <input
+                    className={cx(
+                      "w-full rounded-xl border bg-black/20 px-3 py-2.5 text-sm outline-none",
+                      "focus:ring-2 focus:ring-cyan-400/25",
+                      townInvalid ? "border-red-500/40 focus:border-red-500/60" : "border-white/10 focus:border-cyan-400/50"
+                    )}
+                    value={town}
+                    onChange={(e) => setTown(e.target.value)}
+                    autoComplete="address-level2"
+                  />
+                  {townInvalid && <p className="mt-1 text-[11px] text-red-200/80">Enter your town or city.</p>}
+                </div>
+
+                {error && (
+                  <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-100">
+                    {error}
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={startSignup}
+                  disabled={loading}
+                  className={cx(
+                    "relative inline-flex w-full items-center justify-center rounded-xl px-4 py-3 text-sm font-semibold transition",
+                    "bg-gradient-to-r from-cyan-400 to-sky-500 text-black",
+                    "hover:brightness-110 active:brightness-95",
+                    "disabled:cursor-not-allowed disabled:opacity-60"
+                  )}
+                >
+                  {loading && (
+                    <span className="absolute left-3 inline-flex h-4 w-4 animate-spin rounded-full border-2 border-black/40 border-t-black" />
+                  )}
+                  {loading ? "Starting Direct Debit..." : "Continue to Direct Debit"}
+                </button>
+
+                <div className="text-xs text-white/55">Secure Direct Debit via GoCardless. Cancel anytime.</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Loading overlay */}
+          {loading && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+              <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#0B1020]/90 p-6 text-center">
+                <div className="mx-auto mb-3 h-10 w-10 animate-spin rounded-full border-2 border-white/20 border-t-cyan-300" />
+                <div className="text-sm font-semibold">Starting Direct Debit</div>
+                <div className="mt-1 text-xs text-white/60">Sending you to GoCardless to complete setup</div>
+              </div>
+            </div>
+          )}
+
+          <div className="mt-6 text-center text-xs text-white/40">KAB Group. Reliable service, minimal hassle.</div>
         </div>
-
-        <div className="mt-8 space-y-3">
-          <input className="input" placeholder="Full name" value={fullName} onChange={(e) => setFullName(e.target.value)} />
-          <input className="input" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
-          <input className="input" placeholder="Mobile" value={mobile} onChange={(e) => setMobile(e.target.value)} />
-          <input className="input" placeholder="Postcode" value={postcode} disabled={!!qpPostcode} />
-          <input className="input" placeholder="Address line 1" value={address1} onChange={(e) => setAddress1(e.target.value)} />
-          <input className="input" placeholder="Address line 2 (optional)" value={address2} onChange={(e) => setAddress2(e.target.value)} />
-          <input className="input" placeholder="Town / City" value={town} onChange={(e) => setTown(e.target.value)} />
-        </div>
-
-        {error && <div className="mt-4 text-sm text-red-400">{error}</div>}
-
-        <button
-          onClick={startSignup}
-          disabled={loading}
-          className="mt-6 w-full rounded-xl bg-cyan-400 py-3 font-semibold text-black"
-        >
-          {loading ? "Starting Direct Debit…" : "Continue to Direct Debit"}
-        </button>
       </div>
     </main>
   );
