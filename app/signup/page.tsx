@@ -1,7 +1,9 @@
+// app/signup/page.tsx
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
+import Link from "next/link";
 
 type Plan = "BIN" | "BIN_PLUS_GREEN";
 
@@ -40,10 +42,6 @@ function isLikelyUKMobile(v: string) {
   return digits.length >= 10;
 }
 
-function normalisePostcode(v: string) {
-  return v.toUpperCase().trim().replace(/\s+/g, " ");
-}
-
 function isLikelyPostcode(v: string) {
   const s = v.trim().replace(/\s+/g, "");
   return s.length >= 5 && s.length <= 8;
@@ -53,7 +51,7 @@ export default function SignupPage() {
   const sp = useSearchParams();
   const router = useRouter();
 
-  const qpPostcode = useMemo(() => normalisePostcode(sp.get("postcode") || ""), [sp]);
+  const qpPostcode = useMemo(() => (sp.get("postcode") || "").toUpperCase().trim(), [sp]);
   const zoneId = useMemo(() => (sp.get("zoneId") || "").trim(), [sp]);
 
   const [plan, setPlan] = useState<Plan>("BIN");
@@ -61,6 +59,8 @@ export default function SignupPage() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [mobile, setMobile] = useState("");
+
+  // Keep postcode in state so it can be posted, but prefill from query.
   const [postcode, setPostcode] = useState(qpPostcode);
 
   const [address1, setAddress1] = useState("");
@@ -93,7 +93,7 @@ export default function SignupPage() {
     return { ok: missing.length === 0, missing, nameOk, emailOk, mobileOk, postcodeOk, addressOk, townOk };
   }, [fullName, email, mobile, postcode, address1, town]);
 
-  async function startSignup() {
+  const startSignup = async () => {
     setSubmitted(true);
     setError(null);
 
@@ -114,23 +114,24 @@ export default function SignupPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          full_name: fullName.trim(),
-          email: email.trim(),
-          mobile: mobile.trim(),
-          postcode: normalisePostcode(postcode),
-          address_line_1: address1.trim(),
-          address_line_2: address2.trim() || null,
-          town: town.trim(),
+          full_name: fullName,
+          email,
+          mobile,
+          postcode,
+          address_line_1: address1,
+          address_line_2: address2,
+          town,
           plan,
           zone_id: zoneId,
         }),
       });
 
       const createJson = await createRes.json().catch(() => ({}));
-      if (!createRes.ok) throw new Error(createJson?.details || createJson?.error || "Customer create failed");
+      if (!createRes.ok) {
+        throw new Error(createJson?.details || createJson?.error || "Customer create failed");
+      }
 
       const customerId: string = createJson.customer_id;
-      if (!customerId) throw new Error("Missing customer_id");
 
       const gcRes = await fetch("/api/gocardless/start", {
         method: "POST",
@@ -147,7 +148,7 @@ export default function SignupPage() {
       setError(e?.message || "Something went wrong");
       setLoading(false);
     }
-  }
+  };
 
   const nameInvalid = submitted && !validation.nameOk;
   const emailInvalid = submitted && !validation.emailOk;
@@ -158,6 +159,7 @@ export default function SignupPage() {
 
   return (
     <main className="min-h-screen bg-[#070A0F] text-white">
+      {/* Background accents (quieter) */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         <div className="absolute -top-56 left-1/2 h-[420px] w-[680px] -translate-x-1/2 rounded-full bg-gradient-to-r from-sky-500/14 via-cyan-400/8 to-blue-600/14 blur-3xl" />
         <div className="absolute -bottom-52 right-[-160px] h-[380px] w-[520px] rounded-full bg-gradient-to-tr from-blue-600/14 via-cyan-400/8 to-sky-400/8 blur-3xl" />
@@ -166,6 +168,7 @@ export default function SignupPage() {
 
       <div className="relative mx-auto flex min-h-screen w-full max-w-xl items-center px-6 py-12">
         <div className="w-full">
+          {/* Header */}
           <header className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-white/5">
@@ -180,23 +183,23 @@ export default function SignupPage() {
               </div>
             </div>
 
-            <button
-              type="button"
+            <Link
+              href="/availability?postcode="
               className="text-xs text-white/60 hover:text-white/80"
-              onClick={() => router.push(`/availability?postcode=${encodeURIComponent(postcode || qpPostcode)}`)}
+              onClick={(e) => {
+                e.preventDefault();
+                router.push(`/availability?postcode=${encodeURIComponent(postcode || qpPostcode)}`);
+              }}
             >
               Back
-            </button>
+            </Link>
           </header>
 
-          <h1 className="mt-10 text-3xl font-semibold tracking-tight sm:text-4xl">
-            Choose a plan and continue
-          </h1>
+          <h1 className="mt-10 text-3xl font-semibold tracking-tight sm:text-4xl">Choose a plan and continue</h1>
 
-          <p className="mt-3 text-sm text-white/70">
-            You’ll complete Direct Debit securely on GoCardless.
-          </p>
+          <p className="mt-3 text-sm text-white/70">You’ll complete Direct Debit securely on GoCardless.</p>
 
+          {/* Plan */}
           <div className="mt-8 rounded-2xl border border-white/10 bg-white/[0.04] shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
             <div className="p-6">
               <div className="text-sm font-semibold">Plan</div>
@@ -238,12 +241,11 @@ export default function SignupPage() {
             </div>
           </div>
 
+          {/* Details */}
           <div className="mt-5 rounded-2xl border border-white/10 bg-white/[0.04] shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
             <div className="p-6">
               <div className="text-sm font-semibold">Your details</div>
-              <div className="mt-1 text-xs text-white/60">
-                We use these to set up your Direct Debit and confirm your subscription.
-              </div>
+              <div className="mt-1 text-xs text-white/60">We use these to set up your Direct Debit and confirm your subscription.</div>
 
               <div className="mt-4 grid gap-3">
                 <div>
@@ -252,9 +254,7 @@ export default function SignupPage() {
                     className={cx(
                       "w-full rounded-xl border bg-black/20 px-3 py-2.5 text-sm outline-none",
                       "placeholder:text-white/35 focus:ring-2 focus:ring-cyan-400/25",
-                      nameInvalid
-                        ? "border-red-500/40 focus:border-red-500/60"
-                        : "border-white/10 focus:border-cyan-400/50"
+                      nameInvalid ? "border-red-500/40 focus:border-red-500/60" : "border-white/10 focus:border-cyan-400/50"
                     )}
                     placeholder="Barry Fairgrieve"
                     value={fullName}
@@ -269,9 +269,7 @@ export default function SignupPage() {
                     className={cx(
                       "w-full rounded-xl border bg-black/20 px-3 py-2.5 text-sm outline-none",
                       "placeholder:text-white/35 focus:ring-2 focus:ring-cyan-400/25",
-                      emailInvalid
-                        ? "border-red-500/40 focus:border-red-500/60"
-                        : "border-white/10 focus:border-cyan-400/50"
+                      emailInvalid ? "border-red-500/40 focus:border-red-500/60" : "border-white/10 focus:border-cyan-400/50"
                     )}
                     placeholder="you@example.com"
                     value={email}
@@ -287,9 +285,7 @@ export default function SignupPage() {
                     className={cx(
                       "w-full rounded-xl border bg-black/20 px-3 py-2.5 text-sm outline-none",
                       "placeholder:text-white/35 focus:ring-2 focus:ring-cyan-400/25",
-                      mobileInvalid
-                        ? "border-red-500/40 focus:border-red-500/60"
-                        : "border-white/10 focus:border-cyan-400/50"
+                      mobileInvalid ? "border-red-500/40 focus:border-red-500/60" : "border-white/10 focus:border-cyan-400/50"
                     )}
                     placeholder="07123 456789"
                     value={mobile}
@@ -305,21 +301,15 @@ export default function SignupPage() {
                     className={cx(
                       "w-full rounded-xl border bg-black/20 px-3 py-2.5 text-sm uppercase outline-none",
                       "placeholder:text-white/35 focus:ring-2 focus:ring-cyan-400/25",
-                      postcodeInvalid
-                        ? "border-red-500/40 focus:border-red-500/60"
-                        : "border-white/10 focus:border-cyan-400/50"
+                      postcodeInvalid ? "border-red-500/40 focus:border-red-500/60" : "border-white/10 focus:border-cyan-400/50"
                     )}
                     placeholder="LA3 2FW"
                     value={postcode}
-                    onChange={(e) => setPostcode(normalisePostcode(e.target.value))}
+                    onChange={(e) => setPostcode(e.target.value.toUpperCase())}
                     autoComplete="postal-code"
                     disabled={!!qpPostcode}
                   />
-                  {qpPostcode && (
-                    <p className="mt-2 text-[11px] text-white/50">
-                      We’ve used the postcode from your availability check.
-                    </p>
-                  )}
+                  {qpPostcode && <p className="mt-2 text-[11px] text-white/50">We’ve used the postcode from your availability check.</p>}
                 </div>
 
                 <div>
@@ -328,9 +318,7 @@ export default function SignupPage() {
                     className={cx(
                       "w-full rounded-xl border bg-black/20 px-3 py-2.5 text-sm outline-none",
                       "placeholder:text-white/35 focus:ring-2 focus:ring-cyan-400/25",
-                      addressInvalid
-                        ? "border-red-500/40 focus:border-red-500/60"
-                        : "border-white/10 focus:border-cyan-400/50"
+                      addressInvalid ? "border-red-500/40 focus:border-red-500/60" : "border-white/10 focus:border-cyan-400/50"
                     )}
                     placeholder="8 Nightingale Close"
                     value={address1}
@@ -359,9 +347,7 @@ export default function SignupPage() {
                     className={cx(
                       "w-full rounded-xl border bg-black/20 px-3 py-2.5 text-sm outline-none",
                       "placeholder:text-white/35 focus:ring-2 focus:ring-cyan-400/25",
-                      townInvalid
-                        ? "border-red-500/40 focus:border-red-500/60"
-                        : "border-white/10 focus:border-cyan-400/50"
+                      townInvalid ? "border-red-500/40 focus:border-red-500/60" : "border-white/10 focus:border-cyan-400/50"
                     )}
                     placeholder="Morecambe"
                     value={town}
@@ -387,19 +373,16 @@ export default function SignupPage() {
                     "disabled:cursor-not-allowed disabled:opacity-60"
                   )}
                 >
-                  {loading && (
-                    <span className="absolute left-3 inline-flex h-4 w-4 animate-spin rounded-full border-2 border-black/40 border-t-black" />
-                  )}
+                  {loading && <span className="absolute left-3 inline-flex h-4 w-4 animate-spin rounded-full border-2 border-black/40 border-t-black" />}
                   {loading ? "Starting Direct Debit..." : "Continue to Direct Debit"}
                 </button>
 
-                <div className="text-xs text-white/55">
-                  Secure Direct Debit via GoCardless. Cancel anytime.
-                </div>
+                <div className="text-xs text-white/55">Secure Direct Debit via GoCardless. Cancel anytime.</div>
               </div>
             </div>
           </div>
 
+          {/* Loading overlay */}
           {loading && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
               <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#0B1020]/90 p-6 text-center">
@@ -410,9 +393,7 @@ export default function SignupPage() {
             </div>
           )}
 
-          <div className="mt-6 text-center text-xs text-white/40">
-            KAB Group. Reliable service, minimal hassle.
-          </div>
+          <div className="mt-6 text-center text-xs text-white/40">KAB Group. Reliable service, minimal hassle.</div>
         </div>
       </div>
     </main>
