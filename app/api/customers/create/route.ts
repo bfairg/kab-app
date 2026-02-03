@@ -1,3 +1,4 @@
+// app/api/customers/create/route.ts
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
@@ -19,6 +20,14 @@ function normaliseMobile(input: unknown) {
   return raw.replace(/\s+/g, "");
 }
 
+function normalisePostcode(input: unknown) {
+  // Convert to "LA3 2FW" format
+  return String(input || "")
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, " ");
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -26,7 +35,8 @@ export async function POST(req: Request) {
     const full_name = String(body.full_name || "").trim();
     const email = String(body.email || "").trim();
     const mobile = normaliseMobile(body.mobile);
-    const postcode = String(body.postcode || "").trim();
+
+    const postcode = normalisePostcode(body.postcode);
 
     const address_line_1 = toNullIfEmpty(body.address_line_1);
     const address_line_2 = toNullIfEmpty(body.address_line_2);
@@ -47,6 +57,27 @@ export async function POST(req: Request) {
 
     const supabase = createClient(supabaseUrl, serviceRole);
 
+    // 1) Look up zone_id from full postcode match (zone_postcodes.postcode)
+    const { data: zoneRow, error: zoneErr } = await supabase
+      .from("zone_postcodes")
+      .select("zone_id")
+      .eq("postcode", postcode)
+      .maybeSingle();
+
+    if (zoneErr) {
+      console.error("[customers/create] zone lookup failed:", zoneErr);
+      return NextResponse.json({ error: "Zone lookup failed" }, { status: 500 });
+    }
+
+    if (!zoneRow?.zone_id) {
+      return NextResponse.json(
+        { error: `Postcode not currently covered (${postcode})` },
+        { status: 400 }
+      );
+    }
+
+    const zone_id = zoneRow.zone_id as string;
+
     const payload = {
       full_name,
       email,
@@ -56,16 +87,17 @@ export async function POST(req: Request) {
       address_line_2,
       town,
       plan,
+      zone_id,
       created_at: new Date().toISOString(),
     };
 
     console.log("[customers/create] payload:", payload);
 
-    // Attempt insert first
+    // 2) Attempt insert first
     const { data: inserted, error: insertError } = await supabase
       .from("customers")
       .insert(payload)
-      .select("id, plan")
+      .select("id, plan, zone_id")
       .single();
 
     if (!insertError && inserted) {
@@ -73,17 +105,18 @@ export async function POST(req: Request) {
         ok: true,
         customer_id: inserted.id,
         plan: inserted.plan,
+        zone_id: inserted.zone_id,
         created: true,
       });
     }
 
-    // Handle duplicate mobile
+    // 3) Handle duplicate mobile
     if ((insertError as any)?.code === "23505") {
       console.warn("[customers/create] duplicate mobile detected:", mobile);
 
       const { data: existing, error: selectError } = await supabase
         .from("customers")
-        .select("id, plan")
+        .select("id, plan, zone_id")
         .eq("mobile", mobile)
         .single();
 
@@ -95,7 +128,7 @@ export async function POST(req: Request) {
         );
       }
 
-      // Update details to latest submission
+      // Update details to latest submission (including zone_id)
       const { error: updateError } = await supabase
         .from("customers")
         .update({
@@ -106,17 +139,23 @@ export async function POST(req: Request) {
           address_line_2,
           town,
           plan,
+          zone_id,
         })
         .eq("id", existing.id);
 
       if (updateError) {
         console.error("[customers/create] update failed:", updateError);
+        return NextResponse.json(
+          { error: "Update failed", details: updateError.message },
+          { status: 500 }
+        );
       }
 
       return NextResponse.json({
         ok: true,
         customer_id: existing.id,
-        plan: existing.plan,
+        plan: plan,
+        zone_id: zone_id,
         created: false,
       });
     }
