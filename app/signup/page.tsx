@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { Suspense } from "react";
 import SignupClient from "./SignupClient";
 import { redirectIfCustomerClaimed } from "@/lib/guards/redirectIfCustomerClaimed";
