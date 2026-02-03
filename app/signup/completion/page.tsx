@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { Suspense } from "react";
 import CompletionClient from "./CompletionClient";
 import { redirectIfCustomerClaimed } from "@/lib/guards/redirectIfCustomerClaimed";
