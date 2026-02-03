@@ -1,9 +1,16 @@
 import { Suspense } from "react";
 import SignupAccountClient from "./SignupAccountClient";
+import { redirectIfCustomerClaimed } from "@/lib/guards/redirectIfCustomerClaimed";
 
-export default function SignupAccountPage() {
+function AccountLoading() {
+  return <div className="min-h-screen bg-[#070A0F] text-white" />;
+}
+
+export default async function SignupAccountPage() {
+  await redirectIfCustomerClaimed();
+
   return (
-    <Suspense fallback={<div className="mx-auto max-w-lg p-6">Loading...</div>}>
+    <Suspense fallback={<AccountLoading />}>
       <SignupAccountClient />
     </Suspense>
   );
