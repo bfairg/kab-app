@@ -1,11 +1,17 @@
 import { Suspense } from "react";
 import CompletionClient from "./CompletionClient";
+import { redirectIfCustomerClaimed } from "@/lib/guards/redirectIfCustomerClaimed";
 
-export default function SignupCompletionPage() {
+function CompletionLoading() {
+  return <div className="min-h-screen bg-[#070A0F] text-white" />;
+}
+
+export default async function SignupCompletionPage() {
+  await redirectIfCustomerClaimed();
+
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#070A0F] text-white" />}>
+    <Suspense fallback={<CompletionLoading />}>
       <CompletionClient />
     </Suspense>
   );
 }
-
