@@ -8,19 +8,19 @@ export async function redirectIfCustomerClaimed() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Not logged in at all
+  // Not logged in
   if (!user) return;
 
   const { data: customer, error } = await supabase
     .from("customers")
     .select("id")
-    .eq("auth_user_id", user.id)
+    .eq("user_id", user.id)
     .maybeSingle();
 
-  // If query fails, do nothing to avoid loops
+  // If RLS or query fails, do not block
   if (error) return;
 
-  // Customer already claimed → dashboard
+  // Customer already claimed
   if (customer?.id) {
     redirect("/dashboard");
   }
