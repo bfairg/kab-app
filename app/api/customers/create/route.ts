@@ -2,6 +2,8 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
+const ROUTE_VERSION = "customers-create-v2-2026-02-03";
+
 type Plan = "BIN" | "BIN_PLUS_GREEN";
 
 function normalisePlan(input: unknown): Plan {
@@ -21,7 +23,7 @@ function normaliseMobile(input: unknown) {
 }
 
 function normalisePostcode(input: unknown) {
-  // Convert to "LA3 2FW" format
+  // "LA3 2FW" format
   return String(input || "")
     .trim()
     .toUpperCase()
@@ -57,7 +59,7 @@ export async function POST(req: Request) {
 
     const supabase = createClient(supabaseUrl, serviceRole);
 
-    // 1) Look up zone_id from full postcode match (zone_postcodes.postcode)
+    // IMPORTANT: Derive zone_id from full postcode match in zone_postcodes
     const { data: zoneRow, error: zoneErr } = await supabase
       .from("zone_postcodes")
       .select("zone_id")
@@ -66,12 +68,15 @@ export async function POST(req: Request) {
 
     if (zoneErr) {
       console.error("[customers/create] zone lookup failed:", zoneErr);
-      return NextResponse.json({ error: "Zone lookup failed" }, { status: 500 });
+      return NextResponse.json(
+        { error: "Zone lookup failed", route_version: ROUTE_VERSION },
+        { status: 500 }
+      );
     }
 
     if (!zoneRow?.zone_id) {
       return NextResponse.json(
-        { error: `Postcode not currently covered (${postcode})` },
+        { error: `Postcode not currently covered (${postcode})`, route_version: ROUTE_VERSION },
         { status: 400 }
       );
     }
@@ -91,9 +96,7 @@ export async function POST(req: Request) {
       created_at: new Date().toISOString(),
     };
 
-    console.log("[customers/create] payload:", payload);
-
-    // 2) Attempt insert first
+    // Attempt insert first
     const { data: inserted, error: insertError } = await supabase
       .from("customers")
       .insert(payload)
@@ -103,6 +106,7 @@ export async function POST(req: Request) {
     if (!insertError && inserted) {
       return NextResponse.json({
         ok: true,
+        route_version: ROUTE_VERSION,
         customer_id: inserted.id,
         plan: inserted.plan,
         zone_id: inserted.zone_id,
@@ -110,25 +114,22 @@ export async function POST(req: Request) {
       });
     }
 
-    // 3) Handle duplicate mobile
+    // Duplicate mobile: update existing record
     if ((insertError as any)?.code === "23505") {
-      console.warn("[customers/create] duplicate mobile detected:", mobile);
-
       const { data: existing, error: selectError } = await supabase
         .from("customers")
-        .select("id, plan, zone_id")
+        .select("id")
         .eq("mobile", mobile)
         .single();
 
       if (selectError || !existing) {
         console.error("[customers/create] failed to fetch existing:", selectError);
         return NextResponse.json(
-          { error: "Customer exists but could not be retrieved" },
+          { error: "Customer exists but could not be retrieved", route_version: ROUTE_VERSION },
           { status: 500 }
         );
       }
 
-      // Update details to latest submission (including zone_id)
       const { error: updateError } = await supabase
         .from("customers")
         .update({
@@ -146,33 +147,30 @@ export async function POST(req: Request) {
       if (updateError) {
         console.error("[customers/create] update failed:", updateError);
         return NextResponse.json(
-          { error: "Update failed", details: updateError.message },
+          { error: "Update failed", details: updateError.message, route_version: ROUTE_VERSION },
           { status: 500 }
         );
       }
 
       return NextResponse.json({
         ok: true,
+        route_version: ROUTE_VERSION,
         customer_id: existing.id,
-        plan: plan,
-        zone_id: zone_id,
+        plan,
+        zone_id,
         created: false,
       });
     }
 
-    // Any other DB error
     console.error("[customers/create] insert error:", insertError);
     return NextResponse.json(
-      {
-        error: "Database error",
-        details: insertError?.message ?? null,
-      },
+      { error: "Database error", details: insertError?.message ?? null, route_version: ROUTE_VERSION },
       { status: 500 }
     );
   } catch (err: any) {
     console.error("[customers/create] exception:", err);
     return NextResponse.json(
-      { error: err?.message || "Create customer failed" },
+      { error: err?.message || "Create customer failed", route_version: ROUTE_VERSION },
       { status: 500 }
     );
   }
