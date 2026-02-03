@@ -31,6 +31,11 @@ function normalisePostcode(input: unknown) {
 }
 
 export async function POST(req: Request) {
+  return NextResponse.json(
+    { error: "DEBUG: customers/create route IS LIVE" },
+    { status: 418 }
+  );
+
   try {
     const body = await req.json();
 
