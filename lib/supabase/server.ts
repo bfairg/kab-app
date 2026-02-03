@@ -1,8 +1,8 @@
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 
-export function createSupabaseServer() {
-  const cookieStore = cookies();
+export async function createSupabaseServer() {
+  const cookieStore = await cookies();
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -18,8 +18,7 @@ export function createSupabaseServer() {
               cookieStore.set(name, value, options);
             });
           } catch {
-            // In Server Components, set can fail in some edge cases.
-            // Middleware and Route Handlers are the main places sessions are set.
+            // Can fail in some server component contexts. Route handlers and middleware are the main places sessions are set.
           }
         },
       },
