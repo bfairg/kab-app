@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import LoginClient from "./LoginClient";
 
 function LoginLoading() {
-  return <div className="min-h-screen bg-[#070A0F] text-white" />;
+  return <div className="min-h-[calc(100vh-72px)] bg-[#070A0F] text-white" />;
 }
 
 export default function LoginPage() {
