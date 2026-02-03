@@ -30,7 +30,11 @@ export default function SignupAccountClient() {
 
     const supabase = createSupabaseBrowser();
 
-    const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(
+    const baseUrl =
+      (process.env.NEXT_PUBLIC_SITE_URL || "").trim().replace(/\/+$/, "") ||
+      window.location.origin;
+
+    const redirectTo = `${baseUrl}/auth/callback?next=${encodeURIComponent(
       "/signup/account/complete"
     )}&token=${encodeURIComponent(token)}`;
 
