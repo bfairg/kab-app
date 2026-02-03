@@ -5,12 +5,12 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
   const next = url.searchParams.get("next") || "/dashboard";
-  const token = url.searchParams.get("token"); // your claim token
+  const token = url.searchParams.get("token"); // claim token we carry through
 
   const response = NextResponse.redirect(new URL(next, url.origin));
 
   if (!code) {
-    // No code, just send them onward
+    // No code present, just continue to next (keeping token if present)
     if (token) {
       const nextUrl = new URL(next, url.origin);
       nextUrl.searchParams.set("token", token);
@@ -24,11 +24,10 @@ export async function GET(request: Request) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        getAll: () => request.headers.get("cookie")?.split(";").map((c) => {
-          const [name, ...rest] = c.trim().split("=");
-          return { name, value: rest.join("=") };
-        }) || [],
-        setAll: (cookiesToSet) => {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value, options }) => {
             response.cookies.set(name, value, options);
           });
@@ -42,7 +41,7 @@ export async function GET(request: Request) {
     return NextResponse.redirect(new URL(`/login?error=auth`, url.origin));
   }
 
-  // Preserve claim token to the next page
+  // Preserve claim token onto the redirect
   if (token) {
     const nextUrl = new URL(next, url.origin);
     nextUrl.searchParams.set("token", token);
