@@ -1,6 +1,7 @@
 // app/api/customers/create/route.ts
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { Resend } from "resend";
 
 type Plan = "BIN" | "BIN_PLUS_GREEN";
 
@@ -38,6 +39,61 @@ function safeErr(e: any) {
     details: e.details ?? null,
     hint: e.hint ?? null,
   };
+}
+
+async function sendAdminNewSignupEmail(input: {
+  full_name: string;
+  email: string;
+  mobile: string;
+  postcode: string;
+  plan: Plan;
+  zone_id: string;
+  address_line_1: string | null;
+  address_line_2: string | null;
+  town: string | null;
+  customer_id: string;
+}) {
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.RESEND_FROM;
+  const to = process.env.KAB_ADMIN_NOTIFY_EMAIL;
+
+  // Not configured means no email, but signup still succeeds
+  if (!apiKey || !from || !to) return;
+
+  const resend = new Resend(apiKey);
+
+  const subject = `New KAB signup: ${input.full_name} (${input.postcode})`;
+
+  const esc = (s: string) =>
+    s.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+
+  const html = `
+    <div style="font-family: Arial, Helvetica, sans-serif; line-height: 1.5">
+      <h2 style="margin: 0 0 12px">New signup received</h2>
+      <table cellpadding="6" cellspacing="0" style="border-collapse: collapse; width: 100%; max-width: 680px;">
+        <tr><td style="border:1px solid #e5e7eb; font-weight:600; width:180px;">Name</td><td style="border:1px solid #e5e7eb;">${esc(input.full_name)}</td></tr>
+        <tr><td style="border:1px solid #e5e7eb; font-weight:600;">Postcode</td><td style="border:1px solid #e5e7eb;">${esc(input.postcode)}</td></tr>
+        <tr><td style="border:1px solid #e5e7eb; font-weight:600;">Town</td><td style="border:1px solid #e5e7eb;">${esc(input.town || "-")}</td></tr>
+        <tr><td style="border:1px solid #e5e7eb; font-weight:600;">Address 1</td><td style="border:1px solid #e5e7eb;">${esc(input.address_line_1 || "-")}</td></tr>
+        <tr><td style="border:1px solid #e5e7eb; font-weight:600;">Address 2</td><td style="border:1px solid #e5e7eb;">${esc(input.address_line_2 || "-")}</td></tr>
+        <tr><td style="border:1px solid #e5e7eb; font-weight:600;">Mobile</td><td style="border:1px solid #e5e7eb;">${esc(input.mobile)}</td></tr>
+        <tr><td style="border:1px solid #e5e7eb; font-weight:600;">Customer email</td><td style="border:1px solid #e5e7eb;">${esc(input.email)}</td></tr>
+        <tr><td style="border:1px solid #e5e7eb; font-weight:600;">Plan</td><td style="border:1px solid #e5e7eb;">${esc(input.plan)}</td></tr>
+        <tr><td style="border:1px solid #e5e7eb; font-weight:600;">Zone</td><td style="border:1px solid #e5e7eb;">${esc(input.zone_id)}</td></tr>
+        <tr><td style="border:1px solid #e5e7eb; font-weight:600;">Customer ID</td><td style="border:1px solid #e5e7eb;">${esc(input.customer_id)}</td></tr>
+      </table>
+      <p style="margin-top: 14px; color: #6b7280; font-size: 12px;">
+        Group assignment is manual. Assign A or B in the admin dashboard.
+      </p>
+    </div>
+  `;
+
+  await resend.emails.send({
+    from,
+    to: [to],
+    subject,
+    html,
+  });
 }
 
 export async function POST(req: Request) {
@@ -158,6 +214,20 @@ export async function POST(req: Request) {
     };
 
     if (!insertError && inserted) {
+      // Email notification for true new signup
+      sendAdminNewSignupEmail({
+        full_name,
+        email,
+        mobile,
+        postcode,
+        plan,
+        zone_id,
+        address_line_1,
+        address_line_2,
+        town,
+        customer_id: inserted.id,
+      }).catch((e) => console.error("ADMIN SIGNUP EMAIL FAILED", e));
+
       debug.stage = "done_inserted";
       return NextResponse.json({
         ok: true,
