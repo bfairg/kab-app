@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/admin";
-import { supabaseServer } from "@/lib/supabase/server";
+import { createSupabaseServer } from "@/lib/supabase/server";
 import DueBoardClient from "./DueBoardClient";
 
 function todayISO() {
@@ -11,8 +11,6 @@ function todayISO() {
   return `${yyyy}-${mm}-${dd}`;
 }
 
-type Zone = { id: string; name: string };
-
 export default async function AdminDuePage({
   searchParams,
 }: {
@@ -22,16 +20,15 @@ export default async function AdminDuePage({
   if (!admin.ok) redirect("/login?next=/admin/due");
 
   const date = (searchParams?.date || "").trim() || todayISO();
-  const zone = (searchParams?.zone || "all").trim();
+  const zone = (searchParams?.zone || "").trim() || "all";
 
-  const supabase = supabaseServer();
+  const supabase = createSupabaseServer();
 
   const { data: zones } = await supabase
     .from("zones")
     .select("id,name")
-    .order("name", { ascending: true });
+    .order("name");
 
-  // Due list for the selected date
   let dueQuery = supabase
     .from("customers_next_due")
     .select(
@@ -39,50 +36,45 @@ export default async function AdminDuePage({
     )
     .eq("due_date", date);
 
-  if (zone !== "all") dueQuery = dueQuery.eq("zone_id", zone);
+  if (zone !== "all") {
+    dueQuery = dueQuery.eq("zone_id", zone);
+  }
 
-  const { data: dueRows, error: dueErr } = await dueQuery.order("postcode", {
-    ascending: true,
-  });
+  const { data: dueRows, error: dueErr } = await dueQuery.order("postcode");
 
   if (dueErr) {
     return (
       <div className="mx-auto max-w-6xl px-4 py-8">
         <h1 className="text-2xl font-semibold">Due list</h1>
-        <p className="mt-4 text-sm text-red-700">{dueErr.message}</p>
+        <p className="mt-4 text-sm text-red-600">{dueErr.message}</p>
       </div>
     );
   }
 
-  // Visit status for that date (one query)
-  const { data: visits, error: vErr } = await supabase
+  const { data: visits, error: visitsErr } = await supabase
     .from("cleaning_visits")
     .select("customer_id,due_date,status,completed_at,notes")
     .eq("due_date", date);
 
-  if (vErr) {
+  if (visitsErr) {
     return (
       <div className="mx-auto max-w-6xl px-4 py-8">
         <h1 className="text-2xl font-semibold">Due list</h1>
-        <p className="mt-4 text-sm text-red-700">{vErr.message}</p>
+        <p className="mt-4 text-sm text-red-600">{visitsErr.message}</p>
       </div>
     );
   }
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
-      <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">Due list</h1>
-          <p className="mt-1 text-sm text-black/70">
-            Mark completed or skipped (with note).
-          </p>
-        </div>
-      </div>
+      <h1 className="text-2xl font-semibold">Due list</h1>
+      <p className="mt-2 text-sm text-black/70">
+        Mark cleans as completed or skipped.
+      </p>
 
       <div className="mt-6">
         <DueBoardClient
-          zones={(zones as Zone[]) ?? []}
+          zones={zones ?? []}
           initialDate={date}
           initialZone={zone}
           initialRows={dueRows ?? []}
