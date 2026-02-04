@@ -6,6 +6,8 @@ import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/admin";
 import { createSupabaseServer } from "@/lib/supabase/server";
 
+type ZoneRow = { id: string; name: string };
+
 type CustomerRow = {
   id: string;
   full_name: string | null;
@@ -41,21 +43,38 @@ function joinAddress(c: CustomerRow) {
     .join(", ");
 }
 
-export default async function AdminCustomersPage() {
+function firstString(v: unknown): string {
+  if (Array.isArray(v)) return String(v[0] ?? "");
+  return String(v ?? "");
+}
+
+function cleanLike(s: string) {
+  return s.trim().replace(/\s+/g, " ");
+}
+
+export default async function AdminCustomersPage({
+  searchParams,
+}: {
+  searchParams?: any;
+}) {
   const admin = await requireAdmin();
   if (!admin.ok) redirect("/login?next=/admin/customers");
 
+  const sp = await Promise.resolve(searchParams);
+
+  const zone = firstString(sp?.zone).trim() || "all";
+  const status = firstString(sp?.status).trim() || "all";
+  const q = cleanLike(firstString(sp?.q));
+
   const supabase = await createSupabaseServer();
 
-  const { data, error } = await supabase
-    .from("customers")
-    .select(
-      "id,full_name,email,mobile,address_line_1,address_line_2,town,postcode,status,plan,group_code,created_at,zones(name)"
-    )
-    .order("created_at", { ascending: false })
-    .limit(500);
+  // Zones for filter dropdown
+  const { data: zones, error: zonesErr } = await supabase
+    .from("zones")
+    .select("id,name")
+    .order("name");
 
-  if (error) {
+  if (zonesErr) {
     return (
       <div className="mx-auto max-w-6xl px-4 py-8">
         <div className="flex items-center justify-between">
@@ -69,14 +88,70 @@ export default async function AdminCustomersPage() {
         </div>
 
         <div className="mt-6 card p-6">
+          <p className="text-sm text-red-500">{zonesErr.message}</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Build query with filters
+  let query = supabase
+    .from("customers")
+    .select(
+      "id,full_name,email,mobile,address_line_1,address_line_2,town,postcode,status,plan,group_code,created_at,zone_id,zones(name)"
+    )
+    .order("created_at", { ascending: false })
+    .limit(500);
+
+  if (zone !== "all") query = query.eq("zone_id", zone);
+  if (status !== "all") query = query.eq("status", status);
+
+  if (q) {
+    const like = `%${q}%`;
+    // Search name + address parts
+    query = query.or(
+      [
+        `full_name.ilike.${like}`,
+        `address_line_1.ilike.${like}`,
+        `address_line_2.ilike.${like}`,
+        `town.ilike.${like}`,
+        `postcode.ilike.${like}`,
+      ].join(",")
+    );
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    return (
+      <div className="mx-auto max-w-6xl px-4 py-8">
+        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div>
+            <h1 className="text-3xl font-semibold">Customers</h1>
+            <p className="mt-2 text-sm opacity-70">All customer records and key details.</p>
+          </div>
+
+          <div className="flex gap-2">
+            <Link href="/admin/due" className="btn btn-secondary">
+              Schedule
+            </Link>
+            <Link href="/admin" className="btn btn-secondary">
+              Back
+            </Link>
+          </div>
+        </div>
+
+        <div className="mt-6 card p-6">
           <p className="text-sm text-red-500">{error.message}</p>
         </div>
       </div>
     );
   }
 
+  const zoneRows = (zones ?? []) as unknown as ZoneRow[];
   const rows = (data ?? []) as unknown as CustomerRow[];
 
+  // Preserve filters in the form via defaultValue
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
@@ -96,12 +171,59 @@ export default async function AdminCustomersPage() {
       </div>
 
       <div className="mt-6 card p-6">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold">Customer list</h2>
-          <span className="text-sm opacity-70">{rows.length} shown</span>
+        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold">Customer list</h2>
+            <p className="mt-1 text-sm opacity-70">
+              {rows.length} shown (max 500). Use filters to narrow down.
+            </p>
+          </div>
+
+          <form className="grid gap-3 md:grid-cols-3 md:items-end" action="/admin/customers">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs opacity-70">Zone</label>
+              <select className="input" name="zone" defaultValue={zone}>
+                <option value="all">All zones</option>
+                {zoneRows.map((z) => (
+                  <option key={z.id} value={z.id}>
+                    {z.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-xs opacity-70">Status</label>
+              <select className="input" name="status" defaultValue={status}>
+                <option value="all">All</option>
+                <option value="active">Active</option>
+                <option value="paused">Paused</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-xs opacity-70">Search</label>
+              <input
+                className="input"
+                name="q"
+                defaultValue={q}
+                placeholder="Name or address..."
+              />
+            </div>
+
+            <div className="md:col-span-3 flex gap-2">
+              <button className="btn" type="submit">
+                Apply
+              </button>
+              <Link href="/admin/customers" className="btn btn-secondary">
+                Clear
+              </Link>
+            </div>
+          </form>
         </div>
 
-        <div className="mt-4 overflow-x-auto rounded-2xl border border-white/10">
+        <div className="mt-5 overflow-x-auto rounded-2xl border border-white/10">
           <table className="w-full min-w-[1200px] text-sm">
             <thead className="bg-white/5">
               <tr className="text-left opacity-80">
@@ -140,7 +262,7 @@ export default async function AdminCustomersPage() {
               {rows.length === 0 && (
                 <tr className="border-t border-white/10">
                   <td colSpan={8} className="py-10 px-4 opacity-70">
-                    No customers found.
+                    No customers match the current filters.
                   </td>
                 </tr>
               )}
@@ -149,7 +271,7 @@ export default async function AdminCustomersPage() {
         </div>
 
         <p className="mt-3 text-xs opacity-60">
-          Showing up to 500 records. If you want search and filters, we can add them next.
+          Search matches full name and address fields (address lines, town, postcode).
         </p>
       </div>
     </div>
