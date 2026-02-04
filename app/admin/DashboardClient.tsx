@@ -1,239 +1,119 @@
 "use client";
 
-import Link from "next/link";
-import { useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-
-type ZoneRow = { id: string; name: string };
-
-type CustomerRow = {
-  id: string;
-  full_name: string | null;
-  postcode: string | null;
-  town: string | null;
-  address_line_1: string | null;
-  status: string | null;
-  plan: string | null;
-  group_code: string | null;
-  created_at: string | null;
-  zone_id: string | null;
-  zones?: Array<{ name: string }> | null;
+type ZoneSummaryRow = {
+  zone_id: string;
+  zone_name: string;
+  capacity: number;
+  active_customers: number;
 };
 
-function fmtDateTime(iso: string | null | undefined) {
-  if (!iso) return "-";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleString("en-GB", { timeZone: "Europe/London" });
+function clamp(n: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, n));
 }
 
-function zoneName(c: CustomerRow) {
-  const z = c.zones;
-  if (!z || !Array.isArray(z) || z.length === 0) return "-";
-  return z[0]?.name || "-";
+function pct(active: number, capacity: number) {
+  if (!capacity || capacity <= 0) return 0;
+  return clamp((active / capacity) * 100, 0, 100);
 }
 
-export default function DashboardClient({
-  zones,
-  newSignups,
-  missingGroup,
+function Donut({
+  percent,
+  label,
 }: {
-  zones: ZoneRow[];
-  newSignups: CustomerRow[];
-  missingGroup: CustomerRow[];
+  percent: number; // 0..100
+  label: string;
 }) {
-  const router = useRouter();
-  const [busy, startTransition] = useTransition();
-
-  const [draftGroups, setDraftGroups] = useState<Record<string, "A" | "B" | "">>(
-    () => {
-      const init: Record<string, "A" | "B" | ""> = {};
-      for (const c of missingGroup) {
-        const v = String(c.group_code || "").trim().toUpperCase();
-        init[c.id] = v === "A" || v === "B" ? (v as "A" | "B") : "";
-      }
-      return init;
-    }
-  );
-
-  const missingCount = useMemo(() => missingGroup.length, [missingGroup.length]);
-
-  async function saveGroup(customerId: string) {
-    const group_code = draftGroups[customerId] ?? "";
-
-    startTransition(async () => {
-      const res = await fetch("/api/admin/customers/set-group", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ customer_id: customerId, group_code }),
-      });
-
-      if (!res.ok) {
-        const txt = await res.text();
-        alert(`Failed: ${txt}`);
-        return;
-      }
-
-      router.refresh();
-    });
-  }
+  // Uses your brand teal + subtle white ring
+  const bg = `conic-gradient(rgba(11,181,193,0.95) ${percent}%, rgba(255,255,255,0.10) 0)`;
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8">
-      <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-        <div>
-          <h1 className="text-3xl font-semibold">Admin</h1>
-          <p className="mt-2 text-sm opacity-70">
-            Overview for signups and operational housekeeping.
-          </p>
-        </div>
-
-        <div className="flex gap-2">
-          <Link href="/admin/customers" className="btn btn-secondary">
-            Customers
-          </Link>
-          <Link href="/admin/due" className="btn">
-            Schedule
-          </Link>
-        </div>
+    <div className="flex items-center gap-4">
+      <div
+        className="relative h-16 w-16 rounded-full"
+        style={{ background: bg }}
+        aria-label={label}
+        title={label}
+      >
+        <div className="absolute inset-[7px] rounded-full bg-[#0b0f16] border border-white/10" />
       </div>
-
-      <div className="mt-8 grid gap-6 lg:grid-cols-2">
-        <div className="card p-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold">New signups (last 14 days)</h2>
-            <span className="text-sm opacity-70">{newSignups.length}</span>
-          </div>
-
-          <div className="mt-4 overflow-x-auto rounded-2xl border border-white/10">
-            <table className="w-full min-w-[760px] text-sm">
-              <thead className="bg-white/5">
-                <tr className="text-left opacity-80">
-                  <th className="py-3 px-4">Name</th>
-                  <th className="py-3 px-4">Postcode</th>
-                  <th className="py-3 px-4">Zone</th>
-                  <th className="py-3 px-4">Plan</th>
-                  <th className="py-3 px-4">Group</th>
-                  <th className="py-3 px-4">Created</th>
-                </tr>
-              </thead>
-              <tbody>
-                {newSignups.map((c) => (
-                  <tr key={c.id} className="border-t border-white/10">
-                    <td className="py-3 px-4 font-medium">{c.full_name || "-"}</td>
-                    <td className="py-3 px-4">{c.postcode || "-"}</td>
-                    <td className="py-3 px-4">{zoneName(c)}</td>
-                    <td className="py-3 px-4">{c.plan || "-"}</td>
-                    <td className="py-3 px-4">
-                      {(c.group_code || "").trim() ? c.group_code : "UNASSIGNED"}
-                    </td>
-                    <td className="py-3 px-4">{fmtDateTime(c.created_at)}</td>
-                  </tr>
-                ))}
-
-                {newSignups.length === 0 && (
-                  <tr className="border-t border-white/10">
-                    <td colSpan={6} className="py-8 px-4 opacity-70">
-                      No signups in the last 14 days.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div className="card p-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold">Active customers missing group</h2>
-            <span className="text-sm opacity-70">{missingCount}</span>
-          </div>
-
-          <div className="mt-4 overflow-x-auto rounded-2xl border border-white/10">
-            <table className="w-full min-w-[900px] text-sm">
-              <thead className="bg-white/5">
-                <tr className="text-left opacity-80">
-                  <th className="py-3 px-4">Name</th>
-                  <th className="py-3 px-4">Postcode</th>
-                  <th className="py-3 px-4">Zone</th>
-                  <th className="py-3 px-4">Plan</th>
-                  <th className="py-3 px-4">Created</th>
-                  <th className="py-3 px-4">Assign group</th>
-                  <th className="py-3 px-4 text-right">Action</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {missingGroup.map((c) => {
-                  const value = draftGroups[c.id] ?? "";
-                  const canSave = value === "A" || value === "B";
-
-                  return (
-                    <tr key={c.id} className="border-t border-white/10">
-                      <td className="py-3 px-4 font-medium">{c.full_name || "-"}</td>
-                      <td className="py-3 px-4">{c.postcode || "-"}</td>
-                      <td className="py-3 px-4">{zoneName(c)}</td>
-                      <td className="py-3 px-4">{c.plan || "-"}</td>
-                      <td className="py-3 px-4">{fmtDateTime(c.created_at)}</td>
-
-                      <td className="py-3 px-4">
-                        <select
-                          className="input"
-                          value={value}
-                          onChange={(e) =>
-                            setDraftGroups((prev) => ({
-                              ...prev,
-                              [c.id]: e.target.value as "A" | "B" | "",
-                            }))
-                          }
-                        >
-                          <option value="">Select</option>
-                          <option value="A">A</option>
-                          <option value="B">B</option>
-                        </select>
-                      </td>
-
-                      <td className="py-3 px-4 text-right">
-                        <button
-                          className="btn"
-                          disabled={busy || !canSave}
-                          onClick={() => saveGroup(c.id)}
-                        >
-                          Save
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-
-                {missingGroup.length === 0 && (
-                  <tr className="border-t border-white/10">
-                    <td colSpan={7} className="py-8 px-4 opacity-70">
-                      Everyone active has a group assigned.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          <p className="mt-3 text-xs opacity-60">
-            Assigning group affects scheduling. Use this to balance workload between A and B.
-          </p>
-        </div>
+      <div className="min-w-0">
+        <div className="text-sm font-semibold">{label}</div>
+        <div className="mt-1 text-xs opacity-70">{Math.round(percent)}% utilised</div>
       </div>
+    </div>
+  );
+}
 
-      <div className="mt-10 card p-6">
-        <h2 className="text-xl font-semibold">Zones</h2>
-        <div className="mt-3 flex flex-wrap gap-2">
-          {zones.map((z) => (
-            <span
-              key={z.id}
-              className="inline-flex items-center rounded-full border border-white/10 bg-white/5 px-3 py-1 text-sm"
-            >
-              {z.name}
-            </span>
+export default function DashboardClient({ zoneSummary }: { zoneSummary: ZoneSummaryRow[] }) {
+  const rows = (zoneSummary ?? []).map((z) => {
+    const cap = Number(z.capacity ?? 0);
+    const active = Number(z.active_customers ?? 0);
+    const available = Math.max(0, cap - active);
+    return {
+      ...z,
+      capacity: cap,
+      active_customers: active,
+      available,
+      percent: pct(active, cap),
+    };
+  });
+
+  const totalCapacity = rows.reduce((a, r) => a + r.capacity, 0);
+  const totalActive = rows.reduce((a, r) => a + r.active_customers, 0);
+  const totalAvailable = Math.max(0, totalCapacity - totalActive);
+
+  return (
+    <div className="grid gap-6">
+      <div className="card p-6">
+        <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold">Zone capacity</h2>
+            <p className="mt-1 text-sm opacity-70">
+              Active customers vs available slots per zone.
+            </p>
+          </div>
+
+          <div className="text-sm opacity-80">
+            <span className="font-semibold">{totalActive}</span> active
+            <span className="opacity-60"> / </span>
+            <span className="font-semibold">{totalCapacity}</span> capacity
+            <span className="opacity-60"> (</span>
+            <span className="font-semibold">{totalAvailable}</span> available
+            <span className="opacity-60">)</span>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-4 md:grid-cols-3">
+          {rows.map((z) => (
+            <div key={z.zone_id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <Donut percent={z.percent} label={z.zone_name} />
+
+              <div className="mt-4 grid grid-cols-3 gap-2 text-xs">
+                <div className="rounded-xl border border-white/10 bg-black/20 p-2">
+                  <div className="opacity-70">Active</div>
+                  <div className="mt-1 text-sm font-semibold">{z.active_customers}</div>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-black/20 p-2">
+                  <div className="opacity-70">Available</div>
+                  <div className="mt-1 text-sm font-semibold">{z.available}</div>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-black/20 p-2">
+                  <div className="opacity-70">Capacity</div>
+                  <div className="mt-1 text-sm font-semibold">{z.capacity}</div>
+                </div>
+              </div>
+
+              <div className="mt-3 text-xs opacity-70">
+                Teal = active customers, grey = availability.
+              </div>
+            </div>
           ))}
+
+          {rows.length === 0 && (
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-sm opacity-70">
+              No zone summary data found.
+            </div>
+          )}
         </div>
       </div>
     </div>
