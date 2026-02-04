@@ -21,6 +21,7 @@ export default async function AdminDuePage({
 
   const date = (searchParams?.date || "").trim() || todayISO();
   const zone = (searchParams?.zone || "").trim() || "all";
+  const zoneId = zone === "all" ? null : zone;
 
   const supabase = await createSupabaseServer();
 
@@ -33,7 +34,9 @@ export default async function AdminDuePage({
     return (
       <div className="mx-auto max-w-6xl px-4 py-8">
         <h1 className="text-3xl font-semibold">Due list</h1>
-        <p className="mt-2 text-sm opacity-70">Mark cleans as completed or skipped.</p>
+        <p className="mt-2 text-sm opacity-70">
+          Mark cleans as completed or skipped.
+        </p>
         <div className="mt-6 card p-6">
           <p className="text-sm text-red-500">{zErr.message}</p>
         </div>
@@ -41,18 +44,27 @@ export default async function AdminDuePage({
     );
   }
 
-  const zoneId = zone === "all" ? null : zone;
-
   const { data: dueRows, error: dueErr } = await supabase.rpc("customers_due_on", {
     p_date: date,
     p_zone_id: zoneId,
+  });
+
+  // Temporary debug (shows up in Vercel logs)
+  console.log("DUE RPC RESULT", {
+    date,
+    zone,
+    zoneId,
+    count: (dueRows ?? []).length,
+    error: dueErr ? { message: dueErr.message, details: dueErr.details, hint: dueErr.hint, code: dueErr.code } : null,
   });
 
   if (dueErr) {
     return (
       <div className="mx-auto max-w-6xl px-4 py-8">
         <h1 className="text-3xl font-semibold">Due list</h1>
-        <p className="mt-2 text-sm opacity-70">Mark cleans as completed or skipped.</p>
+        <p className="mt-2 text-sm opacity-70">
+          Mark cleans as completed or skipped.
+        </p>
         <div className="mt-6 card p-6">
           <p className="text-sm text-red-500">{dueErr.message}</p>
         </div>
@@ -63,7 +75,9 @@ export default async function AdminDuePage({
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
       <h1 className="text-3xl font-semibold">Due list</h1>
-      <p className="mt-2 text-sm opacity-70">Mark cleans as completed or skipped.</p>
+      <p className="mt-2 text-sm opacity-70">
+        Mark cleans as completed or skipped.
+      </p>
 
       <div className="mt-6">
         <DueBoardClient
