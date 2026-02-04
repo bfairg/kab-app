@@ -17,6 +17,7 @@ function isoDaysAgo(days: number) {
 
 type ZoneRow = { id: string; name: string };
 
+// IMPORTANT: zones comes back as an array from Supabase join
 type CustomerRow = {
   id: string;
   full_name: string | null;
@@ -28,7 +29,7 @@ type CustomerRow = {
   group_code: string | null;
   created_at: string | null;
   zone_id: string | null;
-  zones?: { name: string } | null;
+  zones?: Array<{ name: string }> | null;
 };
 
 export default async function AdminDashboardPage() {
@@ -87,11 +88,16 @@ export default async function AdminDashboardPage() {
     );
   }
 
+  // Cast via unknown to satisfy TS safely
+  const zonesRows = (zones ?? []) as unknown as ZoneRow[];
+  const newSignupRows = (newSignups ?? []) as unknown as CustomerRow[];
+  const missingGroupRows = (missingGroup ?? []) as unknown as CustomerRow[];
+
   return (
     <DashboardClient
-      zones={(zones ?? []) as ZoneRow[]}
-      newSignups={(newSignups ?? []) as CustomerRow[]}
-      missingGroup={(missingGroup ?? []) as CustomerRow[]}
+      zones={zonesRows}
+      newSignups={newSignupRows}
+      missingGroup={missingGroupRows}
     />
   );
 }
