@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/admin";
 import { createSupabaseServer } from "@/lib/supabase/server";
-import { Section } from "@/components/Section";
 import DueBoardClient from "./DueBoardClient";
 
 function todayISO() {
@@ -25,10 +24,24 @@ export default async function AdminDuePage({
 
   const supabase = await createSupabaseServer();
 
-  const { data: zones } = await supabase
+  const { data: zones, error: zErr } = await supabase
     .from("zones")
     .select("id,name")
     .order("name");
+
+  if (zErr) {
+    return (
+      <div className="mx-auto max-w-6xl px-4 py-8">
+        <h1 className="text-3xl font-semibold text-white">Due list</h1>
+        <p className="mt-2 text-sm text-white/60">
+          Mark cleans as completed or skipped.
+        </p>
+        <div className="mt-6 card p-6">
+          <p className="text-sm text-red-300">{zErr.message}</p>
+        </div>
+      </div>
+    );
+  }
 
   let dueQuery = supabase
     .from("customers_next_due")
@@ -43,11 +56,15 @@ export default async function AdminDuePage({
 
   if (dueErr) {
     return (
-      <Section title="Due list" subtitle="Mark cleans as completed or skipped.">
-        <div className="card p-6">
+      <div className="mx-auto max-w-6xl px-4 py-8">
+        <h1 className="text-3xl font-semibold text-white">Due list</h1>
+        <p className="mt-2 text-sm text-white/60">
+          Mark cleans as completed or skipped.
+        </p>
+        <div className="mt-6 card p-6">
           <p className="text-sm text-red-300">{dueErr.message}</p>
         </div>
-      </Section>
+      </div>
     );
   }
 
@@ -58,23 +75,34 @@ export default async function AdminDuePage({
 
   if (visitsErr) {
     return (
-      <Section title="Due list" subtitle="Mark cleans as completed or skipped.">
-        <div className="card p-6">
+      <div className="mx-auto max-w-6xl px-4 py-8">
+        <h1 className="text-3xl font-semibold text-white">Due list</h1>
+        <p className="mt-2 text-sm text-white/60">
+          Mark cleans as completed or skipped.
+        </p>
+        <div className="mt-6 card p-6">
           <p className="text-sm text-red-300">{visitsErr.message}</p>
         </div>
-      </Section>
+      </div>
     );
   }
 
   return (
-    <Section title="Due list" subtitle="Mark cleans as completed or skipped.">
-      <DueBoardClient
-        zones={zones ?? []}
-        initialDate={date}
-        initialZone={zone}
-        initialRows={dueRows ?? []}
-        initialVisits={visits ?? []}
-      />
-    </Section>
+    <div className="mx-auto max-w-6xl px-4 py-8">
+      <h1 className="text-3xl font-semibold text-white">Due list</h1>
+      <p className="mt-2 text-sm text-white/60">
+        Mark cleans as completed or skipped.
+      </p>
+
+      <div className="mt-6">
+        <DueBoardClient
+          zones={zones ?? []}
+          initialDate={date}
+          initialZone={zone}
+          initialRows={dueRows ?? []}
+          initialVisits={visits ?? []}
+        />
+      </div>
+    </div>
   );
 }
