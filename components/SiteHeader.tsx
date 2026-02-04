@@ -16,8 +16,7 @@ export default async function SiteHeader() {
             <img src="/kab-logo.png" alt="KAB Group" className="h-full w-full object-cover" />
           </div>
           <div className="leading-tight">
-            <div className="text-sm text-white/70">KAB Group</div>
-            <div className="text-lg font-semibold tracking-tight text-white">Customer portal</div>
+            <div className="text-sm text-white/70">KAB Group</div
           </div>
         </a>
 
