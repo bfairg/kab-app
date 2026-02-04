@@ -1,4 +1,5 @@
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/admin";
@@ -13,14 +14,16 @@ function todayISO() {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+function firstString(v: unknown): string {
+  if (Array.isArray(v)) return String(v[0] ?? "");
+  return String(v ?? "");
+}
+
 export default async function AdminDuePage({
   searchParams,
 }: {
-  searchParams?: { date?: string; zone?: string };
+  searchParams?: any;
 }) {
-  /**
-   * 1) Admin gate
-   */
   const admin = await requireAdmin();
 
   console.log("ADMIN CHECK RESULT", {
@@ -32,23 +35,20 @@ export default async function AdminDuePage({
     redirect("/login?next=/admin/due");
   }
 
-  /**
-   * 2) Parse filters
-   */
-  const date = (searchParams?.date || "").trim() || todayISO();
-  const zone = (searchParams?.zone || "").trim() || "all";
+  // In some Next builds, searchParams can be promise-like. Make it safe.
+  const sp = await Promise.resolve(searchParams);
+
+  const dateRaw = firstString(sp?.date).trim();
+  const zoneRaw = firstString(sp?.zone).trim();
+
+  const date = dateRaw || todayISO();
+  const zone = zoneRaw || "all";
   const zoneId = zone === "all" ? null : zone;
 
   console.log("ADMIN DUE FILTERS", { date, zone, zoneId });
 
-  /**
-   * 3) Supabase server client (authenticated)
-   */
   const supabase = await createSupabaseServer();
 
-  /**
-   * 4) Load zones
-   */
   const { data: zones, error: zErr } = await supabase
     .from("zones")
     .select("id,name")
@@ -56,7 +56,6 @@ export default async function AdminDuePage({
 
   if (zErr) {
     console.error("ZONE LOAD ERROR", zErr);
-
     return (
       <div className="mx-auto max-w-6xl px-4 py-8">
         <h1 className="text-3xl font-semibold">Due list</h1>
@@ -70,15 +69,9 @@ export default async function AdminDuePage({
     );
   }
 
-  /**
-   * 5) Call admin RPC
-   */
   const { data: dueRows, error: dueErr } = await supabase.rpc(
     "customers_due_on",
-    {
-      p_date: date,
-      p_zone_id: zoneId,
-    }
+    { p_date: date, p_zone_id: zoneId }
   );
 
   console.log("DUE RPC RESULT", {
@@ -110,9 +103,6 @@ export default async function AdminDuePage({
     );
   }
 
-  /**
-   * 6) Render board
-   */
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
       <h1 className="text-3xl font-semibold">Due list</h1>
