@@ -1,10 +1,12 @@
 import { createSupabaseServer } from "@/lib/supabase/server";
 
 export async function requireAdmin() {
-  const supabase = createSupabaseServer();
+  const supabase = await createSupabaseServer();
 
   const { data: authData, error: authErr } = await supabase.auth.getUser();
-  if (authErr || !authData?.user) return { ok: false as const };
+  if (authErr || !authData?.user) {
+    return { ok: false as const };
+  }
 
   const userId = authData.user.id;
 
@@ -14,7 +16,9 @@ export async function requireAdmin() {
     .eq("user_id", userId)
     .maybeSingle();
 
-  if (adminErr || !adminRow) return { ok: false as const };
+  if (adminErr || !adminRow) {
+    return { ok: false as const };
+  }
 
   return { ok: true as const, user: authData.user };
 }
