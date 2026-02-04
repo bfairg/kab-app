@@ -32,7 +32,7 @@ export default async function DashboardPage() {
   const { data: customer } = await supabase
     .from("customers")
     .select(
-      "id, full_name, email, mobile, postcode, town, address_line_1, address_line_2, plan, status, payment_status, gc_mandate_id, created_at, last_cleaned_at"
+      "id, full_name, email, mobile, postcode, town, address_line_1, address_line_2, plan, status, payment_status, gc_mandate_id, last_cleaned_at"
     )
     .eq("user_id", user.id)
     .maybeSingle();
@@ -45,19 +45,8 @@ export default async function DashboardPage() {
     .eq("customer_id", customer.id)
     .maybeSingle();
 
-  const { data: lastVisit } = await supabase
-    .from("cleaning_visits")
-    .select("cleaned_at")
-    .eq("customer_id", customer.id)
-    .order("cleaned_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  const lastCleanedRaw =
-    customer.last_cleaned_at ?? lastVisit?.cleaned_at ?? null;
-
-  const lastCleanedLabel = lastCleanedRaw
-    ? formatDate(lastCleanedRaw)
+  const lastCleanedLabel = customer.last_cleaned_at
+    ? formatDate(customer.last_cleaned_at)
     : "Not cleaned yet";
 
   const nextScheduledLabel = nextDue?.due_date
@@ -150,7 +139,9 @@ export default async function DashboardPage() {
                       {nextScheduledLabel}
                     </div>
                     {nextHint ? (
-                      <div className="mt-1 text-xs text-white/60">{nextHint}</div>
+                      <div className="mt-1 text-xs text-white/60">
+                        {nextHint}
+                      </div>
                     ) : null}
                   </div>
                 </div>
