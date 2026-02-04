@@ -16,21 +16,45 @@ export default async function AdminDuePage({
 }: {
   searchParams?: { date?: string; zone?: string };
 }) {
+  /**
+   * 1) Admin gate
+   */
   const admin = await requireAdmin();
-  if (!admin.ok) redirect("/login?next=/admin/due");
 
+  console.log("ADMIN CHECK RESULT", {
+    ok: admin.ok,
+    userId: admin.ok ? admin.user.id : null,
+  });
+
+  if (!admin.ok) {
+    redirect("/login?next=/admin/due");
+  }
+
+  /**
+   * 2) Parse filters
+   */
   const date = (searchParams?.date || "").trim() || todayISO();
   const zone = (searchParams?.zone || "").trim() || "all";
   const zoneId = zone === "all" ? null : zone;
 
+  console.log("ADMIN DUE FILTERS", { date, zone, zoneId });
+
+  /**
+   * 3) Supabase server client (authenticated)
+   */
   const supabase = await createSupabaseServer();
 
+  /**
+   * 4) Load zones
+   */
   const { data: zones, error: zErr } = await supabase
     .from("zones")
     .select("id,name")
     .order("name");
 
   if (zErr) {
+    console.error("ZONE LOAD ERROR", zErr);
+
     return (
       <div className="mx-auto max-w-6xl px-4 py-8">
         <h1 className="text-3xl font-semibold">Due list</h1>
@@ -44,18 +68,30 @@ export default async function AdminDuePage({
     );
   }
 
-  const { data: dueRows, error: dueErr } = await supabase.rpc("customers_due_on", {
-    p_date: date,
-    p_zone_id: zoneId,
-  });
+  /**
+   * 5) Call admin RPC
+   */
+  const { data: dueRows, error: dueErr } = await supabase.rpc(
+    "customers_due_on",
+    {
+      p_date: date,
+      p_zone_id: zoneId,
+    }
+  );
 
-  // Temporary debug (shows up in Vercel logs)
   console.log("DUE RPC RESULT", {
     date,
     zone,
     zoneId,
-    count: (dueRows ?? []).length,
-    error: dueErr ? { message: dueErr.message, details: dueErr.details, hint: dueErr.hint, code: dueErr.code } : null,
+    count: dueRows ? dueRows.length : 0,
+    error: dueErr
+      ? {
+          message: dueErr.message,
+          details: dueErr.details,
+          hint: dueErr.hint,
+          code: dueErr.code,
+        }
+      : null,
   });
 
   if (dueErr) {
@@ -72,6 +108,9 @@ export default async function AdminDuePage({
     );
   }
 
+  /**
+   * 6) Render board
+   */
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
       <h1 className="text-3xl font-semibold">Due list</h1>
