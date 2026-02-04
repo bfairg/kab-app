@@ -20,6 +20,10 @@ type DueRow = {
   bin_colour: string;
   show_green: boolean;
   week_includes_green: boolean;
+
+  visit_status?: "completed" | "skipped" | "pending" | null;
+  completed_at?: string | null;
+  notes?: string | null;
 };
 
 type VisitRow = {
@@ -178,7 +182,9 @@ export default function DueBoardClient({
           <tbody>
             {rows.map((r) => {
               const v = visitMap.get(`${r.customer_id}:${r.due_date}`);
-              const status = (v?.status || "pending") as "pending" | "completed" | "skipped";
+              const status =
+                (r.visit_status || v?.status || "pending") as "pending" | "completed" | "skipped";
+              const notes = r.notes ?? v?.notes ?? null;
 
               return (
                 <tr key={r.customer_id} className="border-t border-white/10">
@@ -219,9 +225,7 @@ export default function DueBoardClient({
                         <span className="inline-flex w-fit items-center rounded-full border border-amber-500/20 bg-amber-500/15 px-2 py-1 text-xs text-amber-200">
                           Skipped
                         </span>
-                        {v?.notes ? (
-                          <span className="text-xs opacity-60">{v.notes}</span>
-                        ) : null}
+                        {notes ? <span className="text-xs opacity-60">{notes}</span> : null}
                       </div>
                     )}
 
@@ -230,11 +234,7 @@ export default function DueBoardClient({
 
                   <td className="py-4 px-4 text-right">
                     <div className="flex justify-end gap-2">
-                      <button
-                        className="btn"
-                        disabled={busy}
-                        onClick={() => upsertVisit(r, "completed")}
-                      >
+                      <button className="btn" disabled={busy} onClick={() => upsertVisit(r, "completed")}>
                         Complete
                       </button>
 
@@ -255,18 +255,11 @@ export default function DueBoardClient({
               <tr className="border-t border-white/10">
                 <td colSpan={6} className="py-10 px-4 opacity-80">
                   <div>No customers due for the selected filters.</div>
-                  <div className="mt-2 text-xs opacity-60">
-                    Tip: set Date to 2026-02-16 to test with your anchor week.
-                  </div>
                 </td>
               </tr>
             )}
           </tbody>
         </table>
-      </div>
-
-      <div className="mt-4 text-xs opacity-60">
-        Completed writes a visit record for that due date. Skipped requires a note.
       </div>
     </div>
   );
