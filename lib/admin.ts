@@ -1,7 +1,7 @@
-import { supabaseServer } from "@/lib/supabase/server";
+import { createSupabaseServer } from "@/lib/supabase/server";
 
 export async function requireAdmin() {
-  const supabase = supabaseServer();
+  const supabase = createSupabaseServer();
 
   const { data: authData, error: authErr } = await supabase.auth.getUser();
   if (authErr || !authData?.user) return { ok: false as const };
