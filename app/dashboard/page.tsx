@@ -32,34 +32,35 @@ export default async function DashboardPage() {
   const { data: customer } = await supabase
     .from("customers")
     .select(
-      "id, full_name, email, mobile, postcode, town, address_line_1, address_line_2, plan, status, payment_status, gc_mandate_id, created_at"
+      "id, full_name, email, mobile, postcode, town, address_line_1, address_line_2, plan, status, payment_status, gc_mandate_id, created_at, last_cleaned_at"
     )
     .eq("user_id", user.id)
     .maybeSingle();
 
   if (!customer) redirect("/login");
 
-  // Next scheduled: from your view (based on customers_next_due)
+  // Next scheduled: from your view
   const { data: nextDue } = await supabase
     .from("v_cleaning_next_due")
-    .select("due_date, bin_colour, group_code, zone_name, show_green, week_includes_green")
+    .select("due_date, bin_colour, week_includes_green")
     .eq("customer_id", customer.id)
     .maybeSingle();
 
-  // Last cleaned: adjust table/column names to match your schema
-  // If you already store last_cleaned_at on customers, use that instead and delete this query.
-  const { data: lastClean } = await supabase
-    .from("cleaning_log") // <-- CHANGE THIS to your real table/view name
-    .select("cleaned_at") // <-- CHANGE THIS if your column name differs
+  // Last cleaned fallback: latest cleaning_visits entry (only used if last_cleaned_at is null)
+  // NOTE: change "cleaned_at" below if your timestamp column is named differently.
+  const { data: lastVisit } = await supabase
+    .from("cleaning_visits")
+    .select("cleaned_at")
     .eq("customer_id", customer.id)
     .order("cleaned_at", { ascending: false })
     .limit(1)
     .maybeSingle();
 
-  const nextScheduledLabel = nextDue?.due_date ? formatDate(nextDue.due_date) : "Not scheduled";
-  const lastCleanedLabel = lastClean?.cleaned_at ? formatDate(lastClean.cleaned_at) : "Not cleaned yet";
+  const lastCleanedRaw = customer.last_cleaned_at ?? lastVisit?.cleaned_at ?? null;
+  const lastCleanedLabel = lastCleanedRaw ? formatDate(lastCleanedRaw) : "Not cleaned yet";
 
-  // Optional: small hint text for the next scheduled (bin colour / green bin)
+  const nextScheduledLabel = nextDue?.due_date ? formatDate(nextDue.due_date) : "Not scheduled";
+
   const nextHintParts: string[] = [];
   if (nextDue?.bin_colour) nextHintParts.push(`${nextDue.bin_colour} bin`);
   if (nextDue?.week_includes_green) nextHintParts.push("includes green");
@@ -87,7 +88,9 @@ export default async function DashboardPage() {
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
               <div className="border-b border-white/10 p-6">
                 <div className="text-sm font-semibold">Subscription</div>
-                <div className="mt-1 text-xs text-white/60">Current plan, payment status, and schedule</div>
+                <div className="mt-1 text-xs text-white/60">
+                  Current plan, payment status, and schedule
+                </div>
               </div>
 
               <div className="p-6 space-y-4">
@@ -162,7 +165,9 @@ export default async function DashboardPage() {
               </div>
             </div>
 
-            <div className="mt-4 text-center text-xs text-white/40">KAB Group. Reliable service, minimal hassle.</div>
+            <div className="mt-4 text-center text-xs text-white/40">
+              KAB Group. Reliable service, minimal hassle.
+            </div>
           </aside>
         </div>
       </div>
