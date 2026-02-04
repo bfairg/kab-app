@@ -36,6 +36,13 @@ function joinAddress(r: DueRow) {
     .join(", ");
 }
 
+function badgeClass(kind: "neutral" | "ok" | "warn") {
+  // Uses subtle tokens that work on your dark portal background
+  if (kind === "ok") return "bg-emerald-500/15 text-emerald-200 border-emerald-500/20";
+  if (kind === "warn") return "bg-amber-500/15 text-amber-200 border-amber-500/20";
+  return "bg-white/5 text-white/70 border-white/10";
+}
+
 export default function DueBoardClient({
   zones,
   initialDate,
@@ -51,6 +58,7 @@ export default function DueBoardClient({
 }) {
   const router = useRouter();
   const sp = useSearchParams();
+
   const [date, setDate] = useState(initialDate);
   const [zone, setZone] = useState(initialZone);
   const [query, setQuery] = useState("");
@@ -113,14 +121,14 @@ export default function DueBoardClient({
   }
 
   return (
-    <div className="rounded-2xl border border-black/10 bg-white p-5 shadow-sm">
-      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+    <div className="card p-6">
+      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div className="grid gap-3 md:grid-cols-3">
           <label className="grid gap-1">
-            <span className="text-sm font-medium">Date</span>
+            <span className="text-sm font-medium text-white/80">Date</span>
             <input
               type="date"
-              className="h-10 rounded-xl border border-black/15 px-3"
+              className="h-10 rounded-xl border border-white/10 bg-white/5 px-3 text-white outline-none"
               value={date}
               onChange={(e) => setDate(e.target.value)}
               onBlur={() => pushFilters(date, zone)}
@@ -128,9 +136,9 @@ export default function DueBoardClient({
           </label>
 
           <label className="grid gap-1">
-            <span className="text-sm font-medium">Zone</span>
+            <span className="text-sm font-medium text-white/80">Zone</span>
             <select
-              className="h-10 rounded-xl border border-black/15 px-3"
+              className="h-10 rounded-xl border border-white/10 bg-white/5 px-3 text-white outline-none"
               value={zone}
               onChange={(e) => {
                 const z = e.target.value;
@@ -148,9 +156,9 @@ export default function DueBoardClient({
           </label>
 
           <label className="grid gap-1">
-            <span className="text-sm font-medium">Search</span>
+            <span className="text-sm font-medium text-white/80">Search</span>
             <input
-              className="h-10 rounded-xl border border-black/15 px-3"
+              className="h-10 rounded-xl border border-white/10 bg-white/5 px-3 text-white outline-none placeholder:text-white/30"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Name, address, postcode"
@@ -158,23 +166,24 @@ export default function DueBoardClient({
           </label>
         </div>
 
-        <div className="text-sm text-black/70">
+        <div className="text-sm text-white/70">
           {busy ? "Saving..." : `${rows.length} due`}
         </div>
       </div>
 
-      <div className="mt-5 overflow-x-auto">
+      <div className="mt-5 overflow-x-auto rounded-2xl border border-white/10">
         <table className="w-full min-w-[1000px] text-sm">
-          <thead>
-            <tr className="border-b border-black/10 text-left">
-              <th className="py-2 pr-3">Customer</th>
-              <th className="py-2 pr-3">Address</th>
-              <th className="py-2 pr-3">Colour</th>
-              <th className="py-2 pr-3">Green</th>
-              <th className="py-2 pr-3">Status</th>
-              <th className="py-2 pr-3 text-right">Actions</th>
+          <thead className="bg-white/5">
+            <tr className="text-left text-white/70">
+              <th className="py-3 px-4">Customer</th>
+              <th className="py-3 px-4">Address</th>
+              <th className="py-3 px-4">Colour</th>
+              <th className="py-3 px-4">Green</th>
+              <th className="py-3 px-4">Status</th>
+              <th className="py-3 px-4 text-right">Actions</th>
             </tr>
           </thead>
+
           <tbody>
             {rows.map((r) => {
               const v = visitMap.get(`${r.customer_id}:${r.due_date}`);
@@ -184,52 +193,77 @@ export default function DueBoardClient({
                 | "skipped";
 
               return (
-                <tr key={r.customer_id} className="border-b border-black/5">
-                  <td className="py-3 pr-3 font-medium">
-                    <div>{r.full_name ?? "-"}</div>
-                    <div className="text-xs text-black/60">
+                <tr key={r.customer_id} className="border-t border-white/10">
+                  <td className="py-4 px-4">
+                    <div className="font-semibold text-white">
+                      {r.full_name ?? "-"}
+                    </div>
+                    <div className="mt-1 text-xs text-white/60">
                       {r.zone_name} · Group {r.group_code}
                     </div>
                   </td>
 
-                  <td className="py-3 pr-3 text-black/70">{joinAddress(r)}</td>
+                  <td className="py-4 px-4 text-white/70">{joinAddress(r)}</td>
 
-                  <td className="py-3 pr-3">
-                    <span className="rounded-full bg-black/5 px-2 py-1">
+                  <td className="py-4 px-4">
+                    <span
+                      className={`inline-flex items-center rounded-full border px-2 py-1 text-xs ${badgeClass(
+                        "neutral"
+                      )}`}
+                    >
                       {r.bin_colour}
                     </span>
                   </td>
 
-                  <td className="py-3 pr-3">
+                  <td className="py-4 px-4">
                     {r.show_green ? (
-                      <span className="rounded-full bg-black/5 px-2 py-1">
+                      <span
+                        className={`inline-flex items-center rounded-full border px-2 py-1 text-xs ${badgeClass(
+                          "neutral"
+                        )}`}
+                      >
                         Yes
                       </span>
                     ) : (
-                      "-"
+                      <span className="text-white/40">-</span>
                     )}
                   </td>
 
-                  <td className="py-3 pr-3">
+                  <td className="py-4 px-4">
                     {status === "completed" && (
-                      <span className="rounded-full bg-black/5 px-2 py-1">
+                      <span
+                        className={`inline-flex items-center rounded-full border px-2 py-1 text-xs ${badgeClass(
+                          "ok"
+                        )}`}
+                      >
                         Completed
                       </span>
                     )}
+
                     {status === "skipped" && (
-                      <span className="rounded-full bg-black/5 px-2 py-1">
-                        Skipped{v?.notes ? `: ${v.notes}` : ""}
-                      </span>
+                      <div className="flex flex-col gap-1">
+                        <span
+                          className={`inline-flex w-fit items-center rounded-full border px-2 py-1 text-xs ${badgeClass(
+                            "warn"
+                          )}`}
+                        >
+                          Skipped
+                        </span>
+                        {v?.notes ? (
+                          <span className="text-xs text-white/60">{v.notes}</span>
+                        ) : null}
+                      </div>
                     )}
+
                     {status === "pending" && (
-                      <span className="text-black/60">Pending</span>
+                      <span className="text-white/60">Pending</span>
                     )}
                   </td>
 
-                  <td className="py-3 pr-3 text-right">
+                  <td className="py-4 px-4 text-right">
                     <div className="flex justify-end gap-2">
                       <button
-                        className="rounded-xl border border-black/15 px-3 py-2 font-semibold hover:bg-black/5 disabled:opacity-60"
+                        className="inline-flex rounded-xl bg-[var(--brand)] px-3 py-2 text-xs font-semibold text-white hover:opacity-95 disabled:opacity-60"
                         disabled={busy}
                         onClick={() => upsertVisit(r, "completed")}
                       >
@@ -237,7 +271,7 @@ export default function DueBoardClient({
                       </button>
 
                       <button
-                        className="rounded-xl border border-black/15 px-3 py-2 font-semibold hover:bg-black/5 disabled:opacity-60"
+                        className="inline-flex rounded-xl border border-white/15 bg-white/5 px-3 py-2 text-xs font-semibold text-white hover:bg-white/10 disabled:opacity-60"
                         disabled={busy}
                         onClick={() => upsertVisit(r, "skipped")}
                       >
@@ -250,10 +284,10 @@ export default function DueBoardClient({
             })}
 
             {rows.length === 0 && (
-              <tr>
-                <td colSpan={6} className="py-6 text-black/60">
-                  No customers due for the selected filters.
-                  <div className="mt-1 text-xs">
+              <tr className="border-t border-white/10">
+                <td colSpan={6} className="py-10 px-4 text-white/70">
+                  <div>No customers due for the selected filters.</div>
+                  <div className="mt-2 text-xs text-white/50">
                     Tip: set Date to 2026-02-16 to test with your anchor week.
                   </div>
                 </td>
@@ -261,6 +295,10 @@ export default function DueBoardClient({
             )}
           </tbody>
         </table>
+      </div>
+
+      <div className="mt-4 text-xs text-white/50">
+        Completed writes a visit record for that due date. Skipped requires a note.
       </div>
     </div>
   );
