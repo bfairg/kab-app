@@ -22,7 +22,7 @@ export default async function AdminDuePage({
   const date = (searchParams?.date || "").trim() || todayISO();
   const zone = (searchParams?.zone || "").trim() || "all";
 
-  const supabase = createSupabaseServer();
+  const supabase = await createSupabaseServer();
 
   const { data: zones } = await supabase
     .from("zones")
