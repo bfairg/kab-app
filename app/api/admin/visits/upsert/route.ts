@@ -39,7 +39,7 @@ export async function POST(req: Request) {
     return new NextResponse("Skipped requires a note", { status: 400 });
   }
 
-  const supabase = createSupabaseServer();
+  const supabase = await createSupabaseServer();
 
   const { error } = await supabase
     .from("cleaning_visits")
@@ -51,8 +51,7 @@ export async function POST(req: Request) {
         bin_colour,
         status,
         notes: notes || null,
-        completed_at:
-          status === "completed" ? new Date().toISOString() : null,
+        completed_at: status === "completed" ? new Date().toISOString() : null,
       },
       {
         onConflict: "customer_id,due_date",
