@@ -1,124 +1,79 @@
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
-
-import { redirect } from "next/navigation";
-import { requireAdmin } from "@/lib/admin";
+import { NextResponse } from "next/server";
 import { createSupabaseServer } from "@/lib/supabase/server";
-import DueBoardClient from "./DueBoardClient";
+import { requireAdmin } from "@/lib/admin";
 
-function todayISO() {
-  const d = new Date();
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
-}
+type Status = "completed" | "skipped" | "pending";
 
-function firstString(v: unknown): string {
-  if (Array.isArray(v)) return String(v[0] ?? "");
-  return String(v ?? "");
-}
-
-export default async function AdminDuePage({
-  searchParams,
-}: {
-  searchParams?: any;
-}) {
+export async function POST(req: Request) {
   const admin = await requireAdmin();
-
-  console.log("ADMIN CHECK RESULT", {
-    ok: admin.ok,
-    userId: admin.ok ? admin.user.id : null,
-  });
-
   if (!admin.ok) {
-    redirect("/login?next=/admin/due");
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // In some Next builds, searchParams can be promise-like. Make it safe.
-  const sp = await Promise.resolve(searchParams);
+  const body = await req.json().catch(() => null);
 
-  const dateRaw = firstString(sp?.date).trim();
-  const zoneRaw = firstString(sp?.zone).trim();
+  const customer_id = String(body?.customer_id || "").trim();
+  const due_date = String(body?.due_date || "").trim();
+  const status = String(body?.status || "").trim() as Status;
 
-  const date = dateRaw || todayISO();
-  const zone = zoneRaw || "all";
-  const zoneId = zone === "all" ? null : zone;
+  const notesRaw = body?.notes == null ? null : String(body.notes);
+  const notes = notesRaw ? notesRaw.trim() : null;
 
-  console.log("ADMIN DUE FILTERS", { date, zone, zoneId });
+  const zone_id = body?.zone_id ? String(body.zone_id).trim() : null;
+  const bin_colour = body?.bin_colour ? String(body.bin_colour).trim() : null;
+
+  if (!customer_id || !due_date) {
+    return NextResponse.json(
+      { error: "Missing customer_id or due_date" },
+      { status: 400 }
+    );
+  }
+
+  if (status !== "completed" && status !== "skipped" && status !== "pending") {
+    return NextResponse.json({ error: "Invalid status" }, { status: 400 });
+  }
+
+  if (status === "skipped" && (!notes || notes.length < 2)) {
+    return NextResponse.json(
+      { error: "Skip notes required" },
+      { status: 400 }
+    );
+  }
 
   const supabase = await createSupabaseServer();
 
-  const { data: zones, error: zErr } = await supabase
-    .from("zones")
-    .select("id,name")
-    .order("name");
+  const payload: Record<string, any> = {
+    customer_id,
+    due_date,
+    status,
+  };
 
-  if (zErr) {
-    console.error("ZONE LOAD ERROR", zErr);
-    return (
-      <div className="mx-auto max-w-6xl px-4 py-8">
-        <h1 className="text-3xl font-semibold">Due list</h1>
-        <p className="mt-2 text-sm opacity-70">
-          Mark cleans as completed or skipped.
-        </p>
-        <div className="mt-6 card p-6">
-          <p className="text-sm text-red-500">{zErr.message}</p>
-        </div>
-      </div>
-    );
+  // Keep context when recording a real action
+  if (status === "completed" || status === "skipped") {
+    if (zone_id) payload.zone_id = zone_id;
+    if (bin_colour) payload.bin_colour = bin_colour;
   }
 
-  const { data: dueRows, error: dueErr } = await supabase.rpc(
-    "customers_due_on",
-    { p_date: date, p_zone_id: zoneId }
-  );
+  // Timestamp + notes behavior
+  if (status === "completed") {
+    payload.completed_at = new Date().toISOString();
+    payload.notes = notes ?? null;
+  } else if (status === "skipped") {
+    payload.completed_at = null;
+    payload.notes = notes ?? null;
+  } else {
+    // pending = undo
+    payload.completed_at = null;
+    payload.notes = null;
+  }
 
-  console.log("DUE RPC RESULT", {
-    date,
-    zone,
-    zoneId,
-    count: dueRows ? dueRows.length : 0,
-    error: dueErr
-      ? {
-          message: dueErr.message,
-          details: dueErr.details,
-          hint: dueErr.hint,
-          code: dueErr.code,
-        }
-      : null,
+  const { error } = await supabase.from("cleaning_visits").upsert(payload, {
+    onConflict: "customer_id,due_date",
   });
 
-  if (dueErr) {
-    return (
-      <div className="mx-auto max-w-6xl px-4 py-8">
-        <h1 className="text-3xl font-semibold">Due list</h1>
-        <p className="mt-2 text-sm opacity-70">
-          Mark cleans as completed or skipped.
-        </p>
-        <div className="mt-6 card p-6">
-          <p className="text-sm text-red-500">{dueErr.message}</p>
-        </div>
-      </div>
-    );
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
-  return (
-    <div className="mx-auto max-w-6xl px-4 py-8">
-      <h1 className="text-3xl font-semibold">Due list</h1>
-      <p className="mt-2 text-sm opacity-70">
-        Mark cleans as completed or skipped.
-      </p>
-
-      <div className="mt-6">
-        <DueBoardClient
-          zones={zones ?? []}
-          initialDate={date}
-          initialZone={zone}
-          initialRows={(dueRows ?? []) as any}
-          initialVisits={[]}
-        />
-      </div>
-    </div>
-  );
+  return NextResponse.json({ ok: true });
 }
