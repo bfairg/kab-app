@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/admin";
 import { createSupabaseServer } from "@/lib/supabase/server";
+import { Section } from "@/components/Section";
 import DueBoardClient from "./DueBoardClient";
 
 function todayISO() {
@@ -36,18 +37,17 @@ export default async function AdminDuePage({
     )
     .eq("due_date", date);
 
-  if (zone !== "all") {
-    dueQuery = dueQuery.eq("zone_id", zone);
-  }
+  if (zone !== "all") dueQuery = dueQuery.eq("zone_id", zone);
 
   const { data: dueRows, error: dueErr } = await dueQuery.order("postcode");
 
   if (dueErr) {
     return (
-      <div className="mx-auto max-w-6xl px-4 py-8">
-        <h1 className="text-2xl font-semibold">Due list</h1>
-        <p className="mt-4 text-sm text-red-600">{dueErr.message}</p>
-      </div>
+      <Section title="Due list" subtitle="Mark cleans as completed or skipped.">
+        <div className="card p-6">
+          <p className="text-sm text-red-300">{dueErr.message}</p>
+        </div>
+      </Section>
     );
   }
 
@@ -58,29 +58,23 @@ export default async function AdminDuePage({
 
   if (visitsErr) {
     return (
-      <div className="mx-auto max-w-6xl px-4 py-8">
-        <h1 className="text-2xl font-semibold">Due list</h1>
-        <p className="mt-4 text-sm text-red-600">{visitsErr.message}</p>
-      </div>
+      <Section title="Due list" subtitle="Mark cleans as completed or skipped.">
+        <div className="card p-6">
+          <p className="text-sm text-red-300">{visitsErr.message}</p>
+        </div>
+      </Section>
     );
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8">
-      <h1 className="text-2xl font-semibold">Due list</h1>
-      <p className="mt-2 text-sm text-black/70">
-        Mark cleans as completed or skipped.
-      </p>
-
-      <div className="mt-6">
-        <DueBoardClient
-          zones={zones ?? []}
-          initialDate={date}
-          initialZone={zone}
-          initialRows={dueRows ?? []}
-          initialVisits={visits ?? []}
-        />
-      </div>
-    </div>
+    <Section title="Due list" subtitle="Mark cleans as completed or skipped.">
+      <DueBoardClient
+        zones={zones ?? []}
+        initialDate={date}
+        initialZone={zone}
+        initialRows={dueRows ?? []}
+        initialVisits={visits ?? []}
+      />
+    </Section>
   );
 }
