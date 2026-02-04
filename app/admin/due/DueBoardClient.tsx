@@ -86,11 +86,16 @@ export default function DueBoardClient({
     router.push(`/admin/due?${params.toString()}`);
   }
 
-  async function upsertVisit(r: DueRow, status: "completed" | "skipped") {
+  async function upsertVisit(r: DueRow, status: "completed" | "skipped" | "pending") {
     let notes = "";
     if (status === "skipped") {
       notes = prompt("Reason for skip (required):", "Bin not out")?.trim() || "";
       if (notes.length < 2) return;
+    }
+
+    if (status === "pending") {
+      const ok = confirm("Undo this and set back to Pending?");
+      if (!ok) return;
     }
 
     startTransition(async () => {
@@ -103,7 +108,7 @@ export default function DueBoardClient({
           zone_id: r.zone_id,
           bin_colour: r.bin_colour,
           status,
-          notes,
+          notes: status === "skipped" ? notes : null,
         }),
       });
 
@@ -186,6 +191,8 @@ export default function DueBoardClient({
                 (r.visit_status || v?.status || "pending") as "pending" | "completed" | "skipped";
               const notes = r.notes ?? v?.notes ?? null;
 
+              const canUndo = status === "completed" || status === "skipped";
+
               return (
                 <tr key={r.customer_id} className="border-t border-white/10">
                   <td className="py-4 px-4">
@@ -234,17 +241,33 @@ export default function DueBoardClient({
 
                   <td className="py-4 px-4 text-right">
                     <div className="flex justify-end gap-2">
-                      <button className="btn" disabled={busy} onClick={() => upsertVisit(r, "completed")}>
-                        Complete
-                      </button>
+                      {!canUndo ? (
+                        <>
+                          <button
+                            className="btn"
+                            disabled={busy}
+                            onClick={() => upsertVisit(r, "completed")}
+                          >
+                            Complete
+                          </button>
 
-                      <button
-                        className="btn btn-secondary"
-                        disabled={busy}
-                        onClick={() => upsertVisit(r, "skipped")}
-                      >
-                        Skip
-                      </button>
+                          <button
+                            className="btn btn-secondary"
+                            disabled={busy}
+                            onClick={() => upsertVisit(r, "skipped")}
+                          >
+                            Skip
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          className="btn btn-secondary"
+                          disabled={busy}
+                          onClick={() => upsertVisit(r, "pending")}
+                        >
+                          Undo
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
