@@ -17,7 +17,7 @@ type CustomerRow = {
   group_code: string | null;
   created_at: string | null;
   zone_id: string | null;
-  zones?: Array<{ name: string }> | null; // array from Supabase join
+  zones?: Array<{ name: string }> | null;
 };
 
 function fmtDateTime(iso: string | null | undefined) {
@@ -65,10 +65,7 @@ export default function DashboardClient({
       const res = await fetch("/api/admin/customers/set-group", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          customer_id: customerId,
-          group_code,
-        }),
+        body: JSON.stringify({ customer_id: customerId, group_code }),
       });
 
       if (!res.ok) {
@@ -92,8 +89,11 @@ export default function DashboardClient({
         </div>
 
         <div className="flex gap-2">
+          <Link href="/admin/customers" className="btn btn-secondary">
+            Customers
+          </Link>
           <Link href="/admin/due" className="btn">
-            Due list
+            Schedule
           </Link>
         </div>
       </div>
