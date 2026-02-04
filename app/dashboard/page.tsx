@@ -8,6 +8,18 @@ function label(v: any) {
   return s ? s : "Not set";
 }
 
+function formatDate(v: any) {
+  if (!v) return "Not set";
+  const d = v instanceof Date ? v : new Date(v);
+  if (Number.isNaN(d.getTime())) return "Not set";
+  return new Intl.DateTimeFormat("en-GB", {
+    weekday: "short",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(d);
+}
+
 export default async function DashboardPage() {
   const supabase = await createSupabaseServer();
 
@@ -25,9 +37,33 @@ export default async function DashboardPage() {
     .eq("user_id", user.id)
     .maybeSingle();
 
-  if (!customer) {
-    redirect("/login");
-  }
+  if (!customer) redirect("/login");
+
+  // Next scheduled: from your view (based on customers_next_due)
+  const { data: nextDue } = await supabase
+    .from("v_cleaning_next_due")
+    .select("due_date, bin_colour, group_code, zone_name, show_green, week_includes_green")
+    .eq("customer_id", customer.id)
+    .maybeSingle();
+
+  // Last cleaned: adjust table/column names to match your schema
+  // If you already store last_cleaned_at on customers, use that instead and delete this query.
+  const { data: lastClean } = await supabase
+    .from("cleaning_log") // <-- CHANGE THIS to your real table/view name
+    .select("cleaned_at") // <-- CHANGE THIS if your column name differs
+    .eq("customer_id", customer.id)
+    .order("cleaned_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const nextScheduledLabel = nextDue?.due_date ? formatDate(nextDue.due_date) : "Not scheduled";
+  const lastCleanedLabel = lastClean?.cleaned_at ? formatDate(lastClean.cleaned_at) : "Not cleaned yet";
+
+  // Optional: small hint text for the next scheduled (bin colour / green bin)
+  const nextHintParts: string[] = [];
+  if (nextDue?.bin_colour) nextHintParts.push(`${nextDue.bin_colour} bin`);
+  if (nextDue?.week_includes_green) nextHintParts.push("includes green");
+  const nextHint = nextHintParts.length ? nextHintParts.join(" • ") : "";
 
   return (
     <main className="min-h-[calc(100vh-72px)] bg-[#070A0F] text-white">
@@ -40,10 +76,10 @@ export default async function DashboardPage() {
       <div className="relative mx-auto w-full max-w-6xl px-6 py-10">
         <div className="flex flex-col gap-2">
           <div className="text-sm text-white/70">Dashboard</div>
-          <h1 className="text-3xl font-semibold tracking-tight">Welcome{customer.full_name ? `, ${customer.full_name}` : ""}</h1>
-          <p className="text-sm text-white/70">
-            Your subscription details and service info.
-          </p>
+          <h1 className="text-3xl font-semibold tracking-tight">
+            Welcome{customer.full_name ? `, ${customer.full_name}` : ""}
+          </h1>
+          <p className="text-sm text-white/70">Your subscription details and service info.</p>
         </div>
 
         <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-12">
@@ -51,7 +87,7 @@ export default async function DashboardPage() {
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
               <div className="border-b border-white/10 p-6">
                 <div className="text-sm font-semibold">Subscription</div>
-                <div className="mt-1 text-xs text-white/60">Current plan and payment status</div>
+                <div className="mt-1 text-xs text-white/60">Current plan, payment status, and schedule</div>
               </div>
 
               <div className="p-6 space-y-4">
@@ -75,6 +111,17 @@ export default async function DashboardPage() {
                     <div className="text-xs text-white/60">Customer reference</div>
                     <div className="mt-1 font-mono text-xs text-white/80 break-all">{label(customer.id)}</div>
                   </div>
+
+                  <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                    <div className="text-xs text-white/60">Last cleaned</div>
+                    <div className="mt-1 text-sm font-semibold text-white/85">{lastCleanedLabel}</div>
+                  </div>
+
+                  <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                    <div className="text-xs text-white/60">Next scheduled</div>
+                    <div className="mt-1 text-sm font-semibold text-white/85">{nextScheduledLabel}</div>
+                    {nextHint ? <div className="mt-1 text-xs text-white/60">{nextHint}</div> : null}
+                  </div>
                 </div>
 
                 <div className="rounded-xl border border-white/10 bg-black/20 p-4">
@@ -85,7 +132,7 @@ export default async function DashboardPage() {
                 </div>
 
                 <div className="text-xs text-white/50">
-                  More dashboard features will go here: next clean window, service history, skip requests, add-ons.
+                  More dashboard features will go here: service history, skip requests, add-ons.
                 </div>
               </div>
             </div>
@@ -115,9 +162,7 @@ export default async function DashboardPage() {
               </div>
             </div>
 
-            <div className="mt-4 text-center text-xs text-white/40">
-              KAB Group. Reliable service, minimal hassle.
-            </div>
+            <div className="mt-4 text-center text-xs text-white/40">KAB Group. Reliable service, minimal hassle.</div>
           </aside>
         </div>
       </div>
