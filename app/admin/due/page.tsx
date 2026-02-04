@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/admin";
 import { createSupabaseServer } from "@/lib/supabase/server";
@@ -25,17 +26,8 @@ export default async function AdminDuePage({
   searchParams?: any;
 }) {
   const admin = await requireAdmin();
+  if (!admin.ok) redirect("/login?next=/admin/due");
 
-  console.log("ADMIN CHECK RESULT", {
-    ok: admin.ok,
-    userId: admin.ok ? admin.user.id : null,
-  });
-
-  if (!admin.ok) {
-    redirect("/login?next=/admin/due");
-  }
-
-  // In some Next builds, searchParams can be promise-like. Make it safe.
   const sp = await Promise.resolve(searchParams);
 
   const dateRaw = firstString(sp?.date).trim();
@@ -45,8 +37,6 @@ export default async function AdminDuePage({
   const zone = zoneRaw || "all";
   const zoneId = zone === "all" ? null : zone;
 
-  console.log("ADMIN DUE FILTERS", { date, zone, zoneId });
-
   const supabase = await createSupabaseServer();
 
   const { data: zones, error: zErr } = await supabase
@@ -55,13 +45,18 @@ export default async function AdminDuePage({
     .order("name");
 
   if (zErr) {
-    console.error("ZONE LOAD ERROR", zErr);
     return (
       <div className="mx-auto max-w-6xl px-4 py-8">
-        <h1 className="text-3xl font-semibold">Due list</h1>
-        <p className="mt-2 text-sm opacity-70">
-          Mark cleans as completed or skipped.
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-semibold">Schedule</h1>
+            <p className="mt-2 text-sm opacity-70">Mark cleans as completed or skipped.</p>
+          </div>
+          <Link href="/admin" className="btn btn-secondary">
+            Back
+          </Link>
+        </div>
+
         <div className="mt-6 card p-6">
           <p className="text-sm text-red-500">{zErr.message}</p>
         </div>
@@ -69,33 +64,24 @@ export default async function AdminDuePage({
     );
   }
 
-  const { data: dueRows, error: dueErr } = await supabase.rpc(
-    "customers_due_on",
-    { p_date: date, p_zone_id: zoneId }
-  );
-
-  console.log("DUE RPC RESULT", {
-    date,
-    zone,
-    zoneId,
-    count: dueRows ? dueRows.length : 0,
-    error: dueErr
-      ? {
-          message: dueErr.message,
-          details: dueErr.details,
-          hint: dueErr.hint,
-          code: dueErr.code,
-        }
-      : null,
+  const { data: dueRows, error: dueErr } = await supabase.rpc("customers_due_on", {
+    p_date: date,
+    p_zone_id: zoneId,
   });
 
   if (dueErr) {
     return (
       <div className="mx-auto max-w-6xl px-4 py-8">
-        <h1 className="text-3xl font-semibold">Due list</h1>
-        <p className="mt-2 text-sm opacity-70">
-          Mark cleans as completed or skipped.
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-semibold">Schedule</h1>
+            <p className="mt-2 text-sm opacity-70">Mark cleans as completed or skipped.</p>
+          </div>
+          <Link href="/admin" className="btn btn-secondary">
+            Back
+          </Link>
+        </div>
+
         <div className="mt-6 card p-6">
           <p className="text-sm text-red-500">{dueErr.message}</p>
         </div>
@@ -105,10 +91,21 @@ export default async function AdminDuePage({
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
-      <h1 className="text-3xl font-semibold">Due list</h1>
-      <p className="mt-2 text-sm opacity-70">
-        Mark cleans as completed or skipped.
-      </p>
+      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+        <div>
+          <h1 className="text-3xl font-semibold">Schedule</h1>
+          <p className="mt-2 text-sm opacity-70">Mark cleans as completed or skipped.</p>
+        </div>
+
+        <div className="flex gap-2">
+          <Link href="/admin/customers" className="btn btn-secondary">
+            Customers
+          </Link>
+          <Link href="/admin" className="btn btn-secondary">
+            Back
+          </Link>
+        </div>
+      </div>
 
       <div className="mt-6">
         <DueBoardClient
