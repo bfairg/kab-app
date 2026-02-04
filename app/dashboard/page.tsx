@@ -1,3 +1,4 @@
+{/* build: 2026-02-04 13:48 */}
 export const dynamic = "force-dynamic";
 
 import { redirect } from "next/navigation";
