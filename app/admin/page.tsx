@@ -7,11 +7,14 @@ import { requireAdmin } from "@/lib/admin";
 import { createSupabaseServer } from "@/lib/supabase/server";
 import DashboardClient from "./DashboardClient";
 
-type ZoneSummaryRow = {
+export type ZoneSummaryRow = {
   zone_id: string;
   zone_name: string;
-  capacity: number;
-  active_customers: number;
+  signups_total: number;
+  active_payers: number;
+  pending_payers: number;
+  failed_payers: number;
+  cancelled_payers: number;
 };
 
 export default async function AdminHomePage() {
@@ -20,11 +23,11 @@ export default async function AdminHomePage() {
 
   const supabase = await createSupabaseServer();
 
-  // This assumes your view returns: zone_id, zone_name, capacity, active_customers
-  // If your view uses different column names, tell me what they are and I’ll adjust.
   const { data: zoneSummary, error } = await supabase
     .from("admin_zone_summary")
-    .select("zone_id,zone_name,capacity,active_customers")
+    .select(
+      "zone_id,zone_name,signups_total,active_payers,pending_payers,failed_payers,cancelled_payers"
+    )
     .order("zone_name");
 
   if (error) {
