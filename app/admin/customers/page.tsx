@@ -21,7 +21,7 @@ type CustomerRow = {
   plan: string | null;
   group_code: string | null;
   created_at: string | null;
-  zones?: Array<{ name: string }> | null;
+  zone_id: string | null;
 };
 
 function fmtDateTime(iso: string | null | undefined) {
@@ -29,12 +29,6 @@ function fmtDateTime(iso: string | null | undefined) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleString("en-GB", { timeZone: "Europe/London" });
-}
-
-function zoneName(c: CustomerRow) {
-  const z = c.zones;
-  if (!z || !Array.isArray(z) || z.length === 0) return "-";
-  return z[0]?.name || "-";
 }
 
 function joinAddress(c: CustomerRow) {
@@ -68,8 +62,8 @@ export default async function AdminCustomersPage({
 
   const supabase = await createSupabaseServer();
 
-  // Zones for filter dropdown
-  const { data: zones, error: zonesErr } = await supabase
+  // 1) Load zones once and build a lookup map
+  const { data: zonesData, error: zonesErr } = await supabase
     .from("zones")
     .select("id,name")
     .order("name");
@@ -80,7 +74,9 @@ export default async function AdminCustomersPage({
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-semibold">Customers</h1>
-            <p className="mt-2 text-sm opacity-70">All customer records and key details.</p>
+            <p className="mt-2 text-sm opacity-70">
+              All customer records and key details.
+            </p>
           </div>
           <Link href="/admin" className="btn btn-secondary">
             Back
@@ -94,11 +90,15 @@ export default async function AdminCustomersPage({
     );
   }
 
-  // Build query with filters
+  const zones = (zonesData ?? []) as ZoneRow[];
+  const zoneMap = new Map<string, string>();
+  for (const z of zones) zoneMap.set(z.id, z.name);
+
+  // 2) Load customers WITHOUT join, then map zone_id -> zone_name
   let query = supabase
     .from("customers")
     .select(
-      "id,full_name,email,mobile,address_line_1,address_line_2,town,postcode,status,plan,group_code,created_at,zone_id,zones(name)"
+      "id,full_name,email,mobile,address_line_1,address_line_2,town,postcode,status,plan,group_code,created_at,zone_id"
     )
     .order("created_at", { ascending: false })
     .limit(500);
@@ -108,7 +108,6 @@ export default async function AdminCustomersPage({
 
   if (q) {
     const like = `%${q}%`;
-    // Search name + address parts
     query = query.or(
       [
         `full_name.ilike.${like}`,
@@ -128,7 +127,9 @@ export default async function AdminCustomersPage({
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
             <h1 className="text-3xl font-semibold">Customers</h1>
-            <p className="mt-2 text-sm opacity-70">All customer records and key details.</p>
+            <p className="mt-2 text-sm opacity-70">
+              All customer records and key details.
+            </p>
           </div>
 
           <div className="flex gap-2">
@@ -148,16 +149,16 @@ export default async function AdminCustomersPage({
     );
   }
 
-  const zoneRows = (zones ?? []) as unknown as ZoneRow[];
-  const rows = (data ?? []) as unknown as CustomerRow[];
+  const rows = (data ?? []) as CustomerRow[];
 
-  // Preserve filters in the form via defaultValue
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <h1 className="text-3xl font-semibold">Customers</h1>
-          <p className="mt-2 text-sm opacity-70">All customer records and key details.</p>
+          <p className="mt-2 text-sm opacity-70">
+            All customer records and key details.
+          </p>
         </div>
 
         <div className="flex gap-2">
@@ -184,7 +185,7 @@ export default async function AdminCustomersPage({
               <label className="text-xs opacity-70">Zone</label>
               <select className="input" name="zone" defaultValue={zone}>
                 <option value="all">All zones</option>
-                {zoneRows.map((z) => (
+                {zones.map((z) => (
                   <option key={z.id} value={z.id}>
                     {z.name}
                   </option>
@@ -239,25 +240,29 @@ export default async function AdminCustomersPage({
             </thead>
 
             <tbody>
-              {rows.map((c) => (
-                <tr key={c.id} className="border-t border-white/10">
-                  <td className="py-3 px-4 font-medium">{c.full_name || "-"}</td>
-                  <td className="py-3 px-4">{zoneName(c)}</td>
-                  <td className="py-3 px-4">
-                    {(c.group_code || "").trim() ? c.group_code : "UNASSIGNED"}
-                  </td>
-                  <td className="py-3 px-4">{c.plan || "-"}</td>
-                  <td className="py-3 px-4">{c.status || "-"}</td>
-                  <td className="py-3 px-4">
-                    <div className="flex flex-col gap-1">
-                      <span className="opacity-80">{c.mobile || "-"}</span>
-                      <span className="opacity-60">{c.email || "-"}</span>
-                    </div>
-                  </td>
-                  <td className="py-3 px-4 opacity-80">{joinAddress(c) || "-"}</td>
-                  <td className="py-3 px-4">{fmtDateTime(c.created_at)}</td>
-                </tr>
-              ))}
+              {rows.map((c) => {
+                const zName = c.zone_id ? zoneMap.get(c.zone_id) : null;
+
+                return (
+                  <tr key={c.id} className="border-t border-white/10">
+                    <td className="py-3 px-4 font-medium">{c.full_name || "-"}</td>
+                    <td className="py-3 px-4">{zName || "-"}</td>
+                    <td className="py-3 px-4">
+                      {(c.group_code || "").trim() ? c.group_code : "UNASSIGNED"}
+                    </td>
+                    <td className="py-3 px-4">{c.plan || "-"}</td>
+                    <td className="py-3 px-4">{c.status || "-"}</td>
+                    <td className="py-3 px-4">
+                      <div className="flex flex-col gap-1">
+                        <span className="opacity-80">{c.mobile || "-"}</span>
+                        <span className="opacity-60">{c.email || "-"}</span>
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 opacity-80">{joinAddress(c) || "-"}</td>
+                    <td className="py-3 px-4">{fmtDateTime(c.created_at)}</td>
+                  </tr>
+                );
+              })}
 
               {rows.length === 0 && (
                 <tr className="border-t border-white/10">
