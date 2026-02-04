@@ -17,7 +17,7 @@ type CustomerRow = {
   group_code: string | null;
   created_at: string | null;
   zone_id: string | null;
-  zones?: { name: string } | null;
+  zones?: Array<{ name: string }> | null; // array from Supabase join
 };
 
 function fmtDateTime(iso: string | null | undefined) {
@@ -25,6 +25,12 @@ function fmtDateTime(iso: string | null | undefined) {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleString("en-GB", { timeZone: "Europe/London" });
+}
+
+function zoneName(c: CustomerRow) {
+  const z = c.zones;
+  if (!z || !Array.isArray(z) || z.length === 0) return "-";
+  return z[0]?.name || "-";
 }
 
 export default function DashboardClient({
@@ -61,7 +67,7 @@ export default function DashboardClient({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           customer_id: customerId,
-          group_code: group_code, // "A" | "B" | ""
+          group_code,
         }),
       });
 
@@ -116,7 +122,7 @@ export default function DashboardClient({
                   <tr key={c.id} className="border-t border-white/10">
                     <td className="py-3 px-4 font-medium">{c.full_name || "-"}</td>
                     <td className="py-3 px-4">{c.postcode || "-"}</td>
-                    <td className="py-3 px-4">{c.zones?.name || "-"}</td>
+                    <td className="py-3 px-4">{zoneName(c)}</td>
                     <td className="py-3 px-4">{c.plan || "-"}</td>
                     <td className="py-3 px-4">
                       {(c.group_code || "").trim() ? c.group_code : "UNASSIGNED"}
@@ -166,7 +172,7 @@ export default function DashboardClient({
                     <tr key={c.id} className="border-t border-white/10">
                       <td className="py-3 px-4 font-medium">{c.full_name || "-"}</td>
                       <td className="py-3 px-4">{c.postcode || "-"}</td>
-                      <td className="py-3 px-4">{c.zones?.name || "-"}</td>
+                      <td className="py-3 px-4">{zoneName(c)}</td>
                       <td className="py-3 px-4">{c.plan || "-"}</td>
                       <td className="py-3 px-4">{fmtDateTime(c.created_at)}</td>
 
