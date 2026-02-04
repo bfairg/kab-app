@@ -39,15 +39,12 @@ export default async function DashboardPage() {
 
   if (!customer) redirect("/login");
 
-  // Next scheduled: from your view
   const { data: nextDue } = await supabase
     .from("v_cleaning_next_due")
     .select("due_date, bin_colour, week_includes_green")
     .eq("customer_id", customer.id)
     .maybeSingle();
 
-  // Last cleaned fallback: latest cleaning_visits entry (only used if last_cleaned_at is null)
-  // NOTE: change "cleaned_at" below if your timestamp column is named differently.
   const { data: lastVisit } = await supabase
     .from("cleaning_visits")
     .select("cleaned_at")
@@ -56,14 +53,29 @@ export default async function DashboardPage() {
     .limit(1)
     .maybeSingle();
 
-  const lastCleanedRaw = customer.last_cleaned_at ?? lastVisit?.cleaned_at ?? null;
-  const lastCleanedLabel = lastCleanedRaw ? formatDate(lastCleanedRaw) : "Not cleaned yet";
+  const lastCleanedRaw =
+    customer.last_cleaned_at ?? lastVisit?.cleaned_at ?? null;
 
-  const nextScheduledLabel = nextDue?.due_date ? formatDate(nextDue.due_date) : "Not scheduled";
+  const lastCleanedLabel = lastCleanedRaw
+    ? formatDate(lastCleanedRaw)
+    : "Not cleaned yet";
+
+  const nextScheduledLabel = nextDue?.due_date
+    ? formatDate(nextDue.due_date)
+    : "Not scheduled";
+
+  const isOnGreenPlan = customer.plan === "BIN_PLUS_GREEN";
 
   const nextHintParts: string[] = [];
-  if (nextDue?.bin_colour) nextHintParts.push(`${nextDue.bin_colour} bin`);
-  if (nextDue?.week_includes_green) nextHintParts.push("includes green");
+
+  if (nextDue?.bin_colour) {
+    nextHintParts.push(`${nextDue.bin_colour} bin`);
+  }
+
+  if (isOnGreenPlan && nextDue?.week_includes_green) {
+    nextHintParts.push("includes green");
+  }
+
   const nextHint = nextHintParts.length ? nextHintParts.join(" • ") : "";
 
   return (
@@ -80,7 +92,9 @@ export default async function DashboardPage() {
           <h1 className="text-3xl font-semibold tracking-tight">
             Welcome{customer.full_name ? `, ${customer.full_name}` : ""}
           </h1>
-          <p className="text-sm text-white/70">Your subscription details and service info.</p>
+          <p className="text-sm text-white/70">
+            Your subscription details and service info.
+          </p>
         </div>
 
         <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-12">
@@ -97,45 +111,63 @@ export default async function DashboardPage() {
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="rounded-xl border border-white/10 bg-black/20 p-4">
                     <div className="text-xs text-white/60">Plan</div>
-                    <div className="mt-1 text-sm font-semibold text-white/85">{label(customer.plan)}</div>
+                    <div className="mt-1 text-sm font-semibold text-white/85">
+                      {label(customer.plan)}
+                    </div>
                   </div>
 
                   <div className="rounded-xl border border-white/10 bg-black/20 p-4">
                     <div className="text-xs text-white/60">Payment status</div>
-                    <div className="mt-1 text-sm font-semibold text-white/85">{label(customer.payment_status)}</div>
+                    <div className="mt-1 text-sm font-semibold text-white/85">
+                      {label(customer.payment_status)}
+                    </div>
                   </div>
 
                   <div className="rounded-xl border border-white/10 bg-black/20 p-4">
                     <div className="text-xs text-white/60">Account status</div>
-                    <div className="mt-1 text-sm font-semibold text-white/85">{label(customer.status)}</div>
+                    <div className="mt-1 text-sm font-semibold text-white/85">
+                      {label(customer.status)}
+                    </div>
                   </div>
 
                   <div className="rounded-xl border border-white/10 bg-black/20 p-4">
                     <div className="text-xs text-white/60">Customer reference</div>
-                    <div className="mt-1 font-mono text-xs text-white/80 break-all">{label(customer.id)}</div>
+                    <div className="mt-1 font-mono text-xs text-white/80 break-all">
+                      {label(customer.id)}
+                    </div>
                   </div>
 
                   <div className="rounded-xl border border-white/10 bg-black/20 p-4">
                     <div className="text-xs text-white/60">Last cleaned</div>
-                    <div className="mt-1 text-sm font-semibold text-white/85">{lastCleanedLabel}</div>
+                    <div className="mt-1 text-sm font-semibold text-white/85">
+                      {lastCleanedLabel}
+                    </div>
                   </div>
 
                   <div className="rounded-xl border border-white/10 bg-black/20 p-4">
                     <div className="text-xs text-white/60">Next scheduled</div>
-                    <div className="mt-1 text-sm font-semibold text-white/85">{nextScheduledLabel}</div>
-                    {nextHint ? <div className="mt-1 text-xs text-white/60">{nextHint}</div> : null}
+                    <div className="mt-1 text-sm font-semibold text-white/85">
+                      {nextScheduledLabel}
+                    </div>
+                    {nextHint ? (
+                      <div className="mt-1 text-xs text-white/60">{nextHint}</div>
+                    ) : null}
                   </div>
                 </div>
 
                 <div className="rounded-xl border border-white/10 bg-black/20 p-4">
                   <div className="text-xs text-white/60">Direct Debit</div>
                   <div className="mt-1 text-sm text-white/80">
-                    Mandate: <span className="font-mono">{label(customer.gc_mandate_id)}</span>
+                    Mandate:{" "}
+                    <span className="font-mono">
+                      {label(customer.gc_mandate_id)}
+                    </span>
                   </div>
                 </div>
 
                 <div className="text-xs text-white/50">
-                  More dashboard features will go here: service history, skip requests, add-ons.
+                  More dashboard features will go here: service history, skip
+                  requests, add-ons.
                 </div>
               </div>
             </div>
@@ -151,9 +183,13 @@ export default async function DashboardPage() {
                   <div className="text-xs text-white/60">Address</div>
                   <div className="mt-1">
                     {label(customer.address_line_1)}
-                    {customer.address_line_2 ? <div>{customer.address_line_2}</div> : null}
+                    {customer.address_line_2 ? (
+                      <div>{customer.address_line_2}</div>
+                    ) : null}
                     <div>{label(customer.town)}</div>
-                    <div className="font-semibold">{label(customer.postcode)}</div>
+                    <div className="font-semibold">
+                      {label(customer.postcode)}
+                    </div>
                   </div>
                 </div>
 
