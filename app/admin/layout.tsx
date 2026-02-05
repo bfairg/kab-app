@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="relative min-h-screen">
+    <div className="relative min-h-screen overflow-x-hidden">
       {/* Background layer to match the rest of the app */}
       <div className="pointer-events-none absolute inset-0 -z-10">
         {/* Base */}
