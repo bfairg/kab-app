@@ -47,7 +47,7 @@ export default async function AdminHomePage() {
 
   if (zErr) {
     return (
-      <div className="mx-auto max-w-6xl px-4 py-8">
+      <div className="mx-auto max-w-6xl px-4 py-8 min-w-0">
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
             <h1 className="text-3xl font-semibold">Admin dashboard</h1>
@@ -58,7 +58,7 @@ export default async function AdminHomePage() {
           </Link>
         </div>
 
-        <div className="mt-6 card p-6">
+        <div className="mt-6 card p-6 min-w-0">
           <p className="text-sm text-red-500">{zErr.message}</p>
         </div>
       </div>
@@ -109,7 +109,7 @@ export default async function AdminHomePage() {
   const missingGroup = mapCustomers(missing);
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8">
+    <div className="mx-auto max-w-6xl px-4 py-8 min-w-0">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <h1 className="text-3xl font-semibold">Admin dashboard</h1>
@@ -126,7 +126,7 @@ export default async function AdminHomePage() {
         </div>
       </div>
 
-      <div className="mt-6">
+      <div className="mt-6 min-w-0">
         <DashboardClient
           zones={(zones ?? []) as ZoneRow[]}
           recentSignups={recentSignups}
