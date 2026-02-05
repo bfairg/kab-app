@@ -57,7 +57,7 @@ function CustomerMiniTable({
   cta?: { href: string; label: string };
 }) {
   return (
-    <div className="card p-6">
+    <div className="card p-6 min-w-0">
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-xl font-semibold">{title}</h2>
@@ -76,8 +76,8 @@ function CustomerMiniTable({
         </div>
       ) : null}
 
-      <div className="mt-4 overflow-x-auto rounded-2xl border border-white/10">
-        <table className="min-w-[900px] w-full text-sm">
+      <div className="mt-4 min-w-0 overflow-x-auto rounded-2xl border border-white/10">
+        <table className="w-full min-w-[720px] sm:min-w-[900px] text-sm">
           <thead className="bg-white/5 text-left">
             <tr className="border-b border-white/10">
               <th className="px-4 py-3">Name</th>
@@ -150,8 +150,8 @@ export default function DashboardClient({
   const totalAvail = Math.max(0, totalCap - totalActive);
 
   return (
-    <div className="grid gap-6">
-      <div className="card p-6">
+    <div className="grid gap-6 min-w-0">
+      <div className="card p-6 min-w-0">
         <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
           <div>
             <h2 className="text-xl font-semibold">Zone availability</h2>
@@ -172,14 +172,15 @@ export default function DashboardClient({
 
         <div className="mt-5 grid gap-4 md:grid-cols-3">
           {zoneCards.map((z) => (
-            <div key={z.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+            <div key={z.id} className="rounded-2xl border border-white/10 bg-white/5 p-4 min-w-0">
               <Donut
                 percent={z.percent}
                 title={z.name}
                 subtitle={`${z.active} active, ${z.available} available (of ${z.cap})`}
               />
 
-              <div className="mt-4 grid grid-cols-3 gap-2 text-xs">
+              {/* Responsive stats grid: 2 cols on mobile, 3 on sm+ */}
+              <div className="mt-4 grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
                 <div className="rounded-xl border border-white/10 bg-black/20 p-2">
                   <div className="opacity-70">Active</div>
                   <div className="mt-1 text-sm font-semibold">{z.active}</div>
@@ -188,7 +189,9 @@ export default function DashboardClient({
                   <div className="opacity-70">Available</div>
                   <div className="mt-1 text-sm font-semibold">{z.available}</div>
                 </div>
-                <div className="rounded-xl border border-white/10 bg-black/20 p-2">
+
+                {/* Full width on mobile, single tile on sm+ */}
+                <div className="col-span-2 rounded-xl border border-white/10 bg-black/20 p-2 sm:col-span-1">
                   <div className="opacity-70">Capacity</div>
                   <div className="mt-1 text-sm font-semibold">{z.cap}</div>
                 </div>
