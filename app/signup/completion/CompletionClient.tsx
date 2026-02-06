@@ -20,13 +20,28 @@ export default function CompletionClient() {
   const returned = useMemo(() => (sp.get("returned") || "").trim(), [sp]);
 
   const hasRun = useRef(false);
+  const redirectTimer = useRef<any>(null);
 
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState<number>(0);
   const [debugJson, setDebugJson] = useState<any>(null);
 
+  const [claimToken, setClaimToken] = useState<string | null>(null);
+  const [emailsSent, setEmailsSent] = useState<boolean>(false);
+
   const SHOW_DEBUG = process.env.NEXT_PUBLIC_SHOW_CHECKOUT_DEBUG === "true";
+
+  const continueUrl = useMemo(() => {
+    if (!claimToken) return null;
+    return `/signup/account?token=${encodeURIComponent(claimToken)}`;
+  }, [claimToken]);
+
+  useEffect(() => {
+    return () => {
+      if (redirectTimer.current) clearTimeout(redirectTimer.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (!customerId) {
@@ -63,7 +78,21 @@ export default function CompletionClient() {
           setDebugJson(json);
 
           if (res.ok) {
-            // 👉 NEW STEP: issue claim token for account creation
+            setStatus("success");
+
+            if (!emailsSent) {
+              try {
+                await fetch("/api/notifications/signup-complete", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ customer_id: customerId }),
+                });
+                setEmailsSent(true);
+              } catch {
+                // Intentionally ignore email failures so signup flow is not blocked
+              }
+            }
+
             const claimRes = await fetch("/api/customers/issue-claim", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -81,10 +110,14 @@ export default function CompletionClient() {
               return;
             }
 
-            // 👉 Redirect into account creation flow
-            window.location.href = `/signup/account?token=${encodeURIComponent(
-              claimJson.token
-            )}`;
+            setClaimToken(claimJson.token);
+
+            redirectTimer.current = setTimeout(() => {
+              window.location.href = `/signup/account?token=${encodeURIComponent(
+                claimJson.token
+              )}`;
+            }, 4500);
+
             return;
           }
 
@@ -108,7 +141,7 @@ export default function CompletionClient() {
     };
 
     run();
-  }, [customerId, returned]);
+  }, [customerId, returned, emailsSent]);
 
   const header = useMemo(() => {
     if (status === "idle") {
@@ -129,9 +162,9 @@ export default function CompletionClient() {
     }
     if (status === "success") {
       return {
-        title: "All set",
+        title: "You’re all set",
         subtitle:
-          "Your Direct Debit is active. Redirecting you to finish account setup.",
+          "Next steps are below. We’ll continue to account setup in a moment.",
         tone: "success" as const,
       };
     }
@@ -141,6 +174,8 @@ export default function CompletionClient() {
       tone: "error" as const,
     };
   }, [status, error]);
+
+  const showNextSteps = status === "success" || status === "pending";
 
   return (
     <main className="min-h-screen bg-[#070A0F] text-white">
@@ -153,6 +188,64 @@ export default function CompletionClient() {
             <p className="mt-4 text-sm text-white/60">
               Attempt {attempt} of 8. Please wait…
             </p>
+          )}
+
+          {showNextSteps && (
+            <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.04] p-6 shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
+              <div className="text-sm font-semibold">What happens next</div>
+              <div className="mt-1 text-xs text-white/60">
+                Quick, clear, and no fuss
+              </div>
+
+              <div className="mt-4 space-y-3 text-sm text-white/80">
+                <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                  <div className="text-xs text-white/60">Pro-rata payment</div>
+                  <div className="mt-1">
+                    Your first Direct Debit is a pro-rata amount to align you to
+                    the normal billing date.
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                  <div className="text-xs text-white/60">Next clean date</div>
+                  <div className="mt-1">
+                    Your next clean will appear in your dashboard within 48
+                    hours.
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                  <div className="text-xs text-white/60">Dashboard access</div>
+                  <div className="mt-1">
+                    You’ll create your login next. After that, you can sign in
+                    anytime and view your service schedule on the dashboard.
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">
+                <a
+                  href={continueUrl || "#"}
+                  onClick={(e) => {
+                    if (!continueUrl) e.preventDefault();
+                  }}
+                  className={cx(
+                    "inline-flex items-center justify-center rounded-xl px-4 py-2 text-sm font-semibold",
+                    continueUrl
+                      ? "bg-white text-black hover:opacity-95"
+                      : "bg-white/20 text-white/60 cursor-not-allowed"
+                  )}
+                >
+                  Continue to account setup
+                </a>
+
+                {status === "success" ? (
+                  <div className="text-xs text-white/50">
+                    Continuing automatically in a moment…
+                  </div>
+                ) : null}
+              </div>
+            </div>
           )}
 
           {status === "error" && (
