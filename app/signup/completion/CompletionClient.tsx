@@ -19,6 +19,7 @@ export default function CompletionClient() {
   const customerId = useMemo(() => (sp.get("customer_id") || "").trim(), [sp]);
   const returned = useMemo(() => (sp.get("returned") || "").trim(), [sp]);
   const bypassGc = useMemo(() => sp.get("bypass_gc") === "1", [sp]);
+  const bypassSecret = useMemo(() => (sp.get("bypass_secret") || "").trim(), [sp]);
 
   const hasRun = useRef(false);
   const redirectTimer = useRef<any>(null);
@@ -32,7 +33,12 @@ export default function CompletionClient() {
   const [emailsSent, setEmailsSent] = useState<boolean>(false);
 
   const SHOW_DEBUG = process.env.NEXT_PUBLIC_SHOW_CHECKOUT_DEBUG === "true";
-  const allowBypass = SHOW_DEBUG && bypassGc;
+
+  // Client bypass requires:
+  // - debug flag on (so it's not accidentally used)
+  // - bypass_gc=1
+  // - bypass_secret present (server checks it; this is just to keep client behaviour aligned)
+  const allowBypass = SHOW_DEBUG && bypassGc && bypassSecret.length > 0;
 
   const continueUrl = useMemo(() => {
     if (!claimToken) return null;
@@ -64,9 +70,6 @@ export default function CompletionClient() {
 
     const run = async () => {
       try {
-        // ---------------------------------------------
-        // DEV BYPASS: skip GoCardless entirely
-        // ---------------------------------------------
         if (allowBypass) {
           setDebugJson({ bypass_gc: true });
 
@@ -75,7 +78,7 @@ export default function CompletionClient() {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ customer_id: customerId }),
-            });
+            }).catch(() => {});
             setEmailsSent(true);
           }
 
@@ -108,9 +111,6 @@ export default function CompletionClient() {
           return;
         }
 
-        // ---------------------------------------------
-        // NORMAL GoCardless FLOW
-        // ---------------------------------------------
         const maxAttempts = 8;
         const delayMs = 1500;
 
@@ -134,7 +134,7 @@ export default function CompletionClient() {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ customer_id: customerId }),
-              });
+              }).catch(() => {});
               setEmailsSent(true);
             }
 
@@ -175,9 +175,7 @@ export default function CompletionClient() {
         }
 
         setStatus("error");
-        setError(
-          "Still waiting for Direct Debit confirmation. Please try again."
-        );
+        setError("Still waiting for Direct Debit confirmation. Please try again.");
       } catch (e: any) {
         setStatus("error");
         setError(e?.message || "Something went wrong");
@@ -226,9 +224,7 @@ export default function CompletionClient() {
                 }}
                 className={cx(
                   "rounded-xl px-4 py-2 text-sm font-semibold",
-                  continueUrl
-                    ? "bg-white text-black"
-                    : "bg-white/20 text-white/60"
+                  continueUrl ? "bg-white text-black" : "bg-white/20 text-white/60"
                 )}
               >
                 Continue to account setup
@@ -241,6 +237,12 @@ export default function CompletionClient() {
           <pre className="mt-6 text-xs text-white/60">
             {JSON.stringify(debugJson, null, 2)}
           </pre>
+        )}
+
+        {status === "error" && error && (
+          <div className="mt-6 rounded-xl border border-red-500/30 bg-red-500/10 p-4">
+            <p className="text-sm text-red-200">{error}</p>
+          </div>
         )}
       </div>
     </main>
