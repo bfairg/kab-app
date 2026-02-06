@@ -11,10 +11,15 @@ function CompletionLoading() {
 type SearchParamsValue = string | string[] | undefined;
 
 type PageProps = {
-  searchParams?: Record<string, SearchParamsValue> | Promise<Record<string, SearchParamsValue>>;
+  searchParams?:
+    | Record<string, SearchParamsValue>
+    | Promise<Record<string, SearchParamsValue>>;
 };
 
-function getParam(sp: Record<string, SearchParamsValue> | undefined, key: string): string {
+function getParam(
+  sp: Record<string, SearchParamsValue> | undefined,
+  key: string
+): string {
   const v = sp?.[key];
   if (Array.isArray(v)) return (v[0] || "").trim();
   return (v || "").trim();
@@ -23,11 +28,14 @@ function getParam(sp: Record<string, SearchParamsValue> | undefined, key: string
 export default async function SignupCompletionPage(props: PageProps) {
   const sp = await Promise.resolve(props.searchParams);
 
-  const showDebug = process.env.NEXT_PUBLIC_SHOW_CHECKOUT_DEBUG === "true";
   const bypassGc = getParam(sp, "bypass_gc") === "1";
+  const bypassSecret = getParam(sp, "bypass_secret");
 
-  // If we're explicitly doing a debug bypass, do not run the guard that can trigger notFound().
-  if (!(showDebug && bypassGc)) {
+  const required = (process.env.SIGNUP_BYPASS_SECRET || "").trim();
+  const bypassAllowed = !!required && bypassGc && bypassSecret === required;
+
+  // Only skip guard when the bypass secret matches
+  if (!bypassAllowed) {
     await redirectIfCustomerClaimed();
   }
 
