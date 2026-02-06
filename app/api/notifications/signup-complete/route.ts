@@ -87,8 +87,10 @@ export async function POST(request: Request) {
     const loginUrl = baseUrl ? `${baseUrl}/login` : "/login";
 
     const internalTo = "info@kabgroup.co.uk";
+
     const fromEmail =
-      process.env.RESEND_FROM_EMAIL?.trim() || "KAB Group <info@kabgroup.co.uk>";
+      process.env.EMAIL_FROM?.trim() ||
+      "KAB Group <info@kabgroup.co.uk>";
 
     const createdAt = customer.created_at
       ? new Date(customer.created_at).toLocaleString("en-GB", {
@@ -120,35 +122,23 @@ export async function POST(request: Request) {
       customerEmail.length > 3 &&
       process.env.SEND_SIGNUP_NEXT_STEPS_EMAIL !== "false";
 
-    const customerSubject = "Welcome to KAB Group. Next steps";
+    const customerSubject = "Welcome to KAB Group. What happens next";
 
     const customerHtml = `
       <div style="font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; line-height:1.6;">
         <h2 style="margin:0 0 12px;">You’re all set</h2>
-        <p style="margin:0 0 12px;">
-          Thanks for signing up. Here’s what happens next:
-        </p>
-        <ul style="margin:0 0 14px; padding-left:18px;">
+        <p>Thanks for signing up. Here’s what happens next:</p>
+        <ul>
           <li><strong>Pro-rata payment:</strong> your first Direct Debit is a pro-rata amount to align you to the normal billing date.</li>
-          <li><strong>Next clean date:</strong> this will appear in your dashboard within <strong>48 hours</strong>.</li>
-          <li><strong>Dashboard access:</strong> once you’ve created your login, you can sign in and view everything here: <a href="${dashboardUrl}">${dashboardUrl}</a></li>
+          <li><strong>Next clean date:</strong> this will appear in your dashboard within 48 hours.</li>
+          <li><strong>Dashboard access:</strong> once your login is created, sign in here: <a href="${dashboardUrl}">${dashboardUrl}</a></li>
         </ul>
-        <p style="margin:0 0 12px;">
-          If you need to sign in again later, use: <a href="${loginUrl}">${loginUrl}</a>
-        </p>
-        <p style="margin:0; color:#666; font-size:12px;">
-          KAB Group. Reliable service, minimal hassle.
-        </p>
+        <p>If you need to sign in again later, use <a href="${loginUrl}">${loginUrl}</a></p>
+        <p style="font-size:12px; color:#666;">KAB Group</p>
       </div>
     `;
 
-    const results: any = {
-      internal: null,
-      customer: null,
-      customer_email_sent: false,
-    };
-
-    results.internal = await resend.emails.send({
+    await resend.emails.send({
       from: fromEmail,
       to: [internalTo],
       subject: internalSubject,
@@ -157,17 +147,16 @@ export async function POST(request: Request) {
     });
 
     if (sendCustomerEmail) {
-      results.customer = await resend.emails.send({
+      await resend.emails.send({
         from: fromEmail,
         to: [customerEmail],
         subject: customerSubject,
         html: customerHtml,
         replyTo: internalTo,
       });
-      results.customer_email_sent = true;
     }
 
-    return NextResponse.json({ ok: true, results });
+    return NextResponse.json({ ok: true });
   } catch (e: any) {
     return NextResponse.json(
       { error: e?.message || "Unexpected error" },
