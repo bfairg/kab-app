@@ -8,25 +8,25 @@ function CompletionLoading() {
   return <div className="min-h-screen bg-[#070A0F] text-white" />;
 }
 
+type SearchParamsValue = string | string[] | undefined;
+
 type PageProps = {
-  searchParams?: Record<string, string | string[] | undefined>;
+  searchParams?: Record<string, SearchParamsValue> | Promise<Record<string, SearchParamsValue>>;
 };
 
-function getParam(
-  searchParams: PageProps["searchParams"],
-  key: string
-): string {
-  const v = searchParams?.[key];
+function getParam(sp: Record<string, SearchParamsValue> | undefined, key: string): string {
+  const v = sp?.[key];
   if (Array.isArray(v)) return (v[0] || "").trim();
   return (v || "").trim();
 }
 
-export default async function SignupCompletionPage({ searchParams }: PageProps) {
-  const showDebug = process.env.NEXT_PUBLIC_SHOW_CHECKOUT_DEBUG === "true";
-  const bypassGc = getParam(searchParams, "bypass_gc") === "1";
+export default async function SignupCompletionPage(props: PageProps) {
+  const sp = await Promise.resolve(props.searchParams);
 
-  // When doing a debug bypass, we need to allow the page to render even if
-  // the usual guard would redirect/notFound.
+  const showDebug = process.env.NEXT_PUBLIC_SHOW_CHECKOUT_DEBUG === "true";
+  const bypassGc = getParam(sp, "bypass_gc") === "1";
+
+  // If we're explicitly doing a debug bypass, do not run the guard that can trigger notFound().
   if (!(showDebug && bypassGc)) {
     await redirectIfCustomerClaimed();
   }
