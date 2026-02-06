@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { headers } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
 
@@ -7,15 +6,15 @@ type Body = {
   customer_id?: string;
 };
 
-function getBaseUrl() {
-  const h = headers();
-
+function getBaseUrlFromRequest(request: Request) {
   const explicit =
     process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
     process.env.SITE_URL?.trim() ||
     "";
 
   if (explicit) return explicit.replace(/\/+$/, "");
+
+  const h = request.headers;
 
   const forwardedProto = h.get("x-forwarded-proto") || "https";
   const forwardedHost = h.get("x-forwarded-host");
@@ -83,7 +82,7 @@ export async function POST(request: Request) {
 
     const resend = new Resend(resendKey);
 
-    const baseUrl = getBaseUrl();
+    const baseUrl = getBaseUrlFromRequest(request);
     const dashboardUrl = baseUrl ? `${baseUrl}/dashboard` : "/dashboard";
     const loginUrl = baseUrl ? `${baseUrl}/login` : "/login";
 
